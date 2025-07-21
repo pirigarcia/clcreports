@@ -407,7 +407,7 @@ function verEvaluacion(evaluacionId) {
 // Editar una evaluación existente
 function esAdmin() {
   // Ajusta esta lógica según cómo determines el rol admin en tu app
-  return state.currentUser && state.currentUser.email === 'unknownshoppers@gmail.com';
+  return state.currentUser && state.currentUser.email === 'unknownshoppersmx@gmail.com';
 }
 
 function editarEvaluacion(evaluacionId) {
