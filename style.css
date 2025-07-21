@@ -1,3 +1,347 @@
+/* Variables de colores */
+:root {
+    --primary-color: #4361ee;
+    --secondary-color: #3f37c9;
+    --success-color: #4bb543;
+    --warning-color: #f9c74f;
+    --danger-color: #ef476f;
+    --info-color: #4895ef;
+    --light-color: #f8f9fa;
+    --dark-color: #212529;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-400: #ced4da;
+    --gray-500: #adb5bd;
+    --gray-600: #6c757d;
+    --gray-700: #495057;
+    --gray-800: #343a40;
+    --gray-900: #212529;
+}
+
+/* Estilos generales */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fb;
+    color: var(--gray-800);
+    line-height: 1.6;
+}
+
+/* Barra de navegación */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 0.8rem 1rem;
+}
+
+.navbar-brand {
+    font-weight: 600;
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+}
+
+.navbar-brand i {
+    font-size: 1.6rem;
+}
+
+.nav-link {
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s;
+}
+
+.nav-link:hover, .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Tarjetas */
+.card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+/* Tarjetas de resumen */
+.card-summary {
+    border-left: 4px solid;
+}
+
+.card-summary.bg-primary {
+    border-left-color: var(--primary-color);
+}
+
+.card-summary.bg-success {
+    border-left-color: var(--success-color);
+}
+
+.card-summary.bg-warning {
+    border-left-color: var(--warning-color);
+}
+
+.card-summary.bg-info {
+    border-left-color: var(--info-color);
+}
+
+/* Tablas */
+.table {
+    margin-bottom: 0;
+}
+
+.table thead th {
+    border-top: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    color: var(--gray-600);
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.table > :not(caption) > * > * {
+    padding: 1rem 1.25rem;
+    box-shadow: none;
+}
+
+.table-hover > tbody > tr:hover {
+    background-color: rgba(67, 97, 238, 0.05);
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+}
+
+.badge-completed {
+    background-color: rgba(75, 181, 67, 0.1);
+    color: var(--success-color);
+}
+
+.badge-pending {
+    background-color: rgba(249, 199, 79, 0.1);
+    color: #e6a800;
+}
+
+.badge-in-progress {
+    background-color: rgba(67, 97, 238, 0.1);
+    color: var(--primary-color);
+}
+
+/* Botones */
+.btn {
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+/* Formularios */
+.form-control, .form-select {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--gray-300);
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
+}
+
+/* Footer */
+.footer {
+    background-color: #fff;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 1.5rem 0;
+    margin-top: 2rem;
+}
+
+/* Spinners */
+.spinner-border {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-width: 0.2em;
+}
+
+/* Modales */
+.modal-content {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 1.25rem 1.5rem;
+}
+
+.modal-footer {
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 1rem 1.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .btn-toolbar {
+        margin-top: 1rem;
+    }
+    
+    .table-responsive {
+        border: none;
+    }
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Scroll personalizado */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--gray-400);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-500);
+}
+
+/* Utilidades */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.text-ellipsis {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Estilos para los parámetros de evaluación */
+.parametro-item {
+    background-color: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s;
+}
+
+.parametro-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.05);
+}
+
+.parametro-titulo {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--gray-800);
+}
+
+.parametro-descripcion {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    margin-bottom: 1rem;
+}
+
+.parametro-puntos {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.punto-option {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+    padding: 0.5rem;
+    border: 1px solid var(--gray-300);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: #fff;
+}
+
+.punto-option:hover {
+    background-color: var(--gray-100);
+}
+
+.punto-option.selected {
+    background-color: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+.punto-valor {
+    display: block;
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+.punto-descripcion {
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+
+.punto-option.selected .punto-descripcion {
+    color: rgba(255, 255, 255, 0.9);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -80,3 +424,48 @@ input:invalid + label::after::before, select:invalid + label::after::before, tex
     content: " *";
     color: #cc0000;
 }
+/* Login Page Styles */
+.login-page {
+    background-color: #f8f9fa;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+}
+
+.login-container {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.login-logo {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.login-logo img {
+    max-width: 150px;
+    height: auto;
+}
+
+.login-form .form-control {
+    margin-bottom: 1rem;
+}
+
+.login-alert {
+    margin-top: 1rem;
+}
+
+.login-success {
+    text-align: center;
+}
+
+.login-success i {
+    font-size: 3rem;
+    color: var(--success-color);
+    margin-bottom: 1rem;
+}
+

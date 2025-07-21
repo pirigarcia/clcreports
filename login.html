@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - CLC Reportes</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <div class="logo">
+                <h2>CLC Reportes</h2>
+                <p class="text-muted">Sistema de Evaluación</p>
+            </div>
+            
+            <div id="login-form">
+                <div class="mb-3">
+                    <label for="email" class="form-label">Correo Electrónico</label>
+                    <input type="email" class="form-control" id="email" placeholder="usuario@ejemplo.com" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Contraseña</label>
+                    <input type="password" class="form-control" id="password" placeholder="••••••••" required>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary" id="login-btn">
+                        <span class="spinner-border spinner-border-sm d-none" id="login-spinner"></span>
+                        Iniciar Sesión
+                    </button>
+                </div>
+                <div id="login-error" class="alert alert-danger mt-3 d-none" role="alert">
+                    Error al iniciar sesión. Verifica tus credenciales.
+                </div>
+            </div>
+            
+            <div id="login-success" class="text-center d-none">
+                <div class="mb-3">
+                    <i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>
+                </div>
+                <h4>¡Bienvenido!</h4>
+                <p>Redirigiendo al sistema...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword,
+            onAuthStateChanged
+        } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
+
+        // Configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAbVVwZAWnuEecGD3c8UP49ezQHd7PQ9MQ",
+            authDomain: "clcreports-9083b.firebaseapp.com",
+            projectId: "clcreports-9083b",
+            storageBucket: "clcreports-9083b.appspot.com",
+            messagingSenderId: "312363582020",
+            appId: "1:312363582020:web:6951c11e95e946f233f211"
+        };
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Elementos del DOM
+        const loginForm = document.getElementById('login-form');
+        const loginBtn = document.getElementById('login-btn');
+        const loginSpinner = document.getElementById('login-spinner');
+        const loginError = document.getElementById('login-error');
+        const loginSuccess = document.getElementById('login-success');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+
+        // Verificar si el usuario ya está autenticado
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Usuario ya autenticado, redirigir al dashboard
+                window.location.href = 'index.html';
+            }
+        });
+
+        // Manejador de inicio de sesión
+        loginBtn.addEventListener('click', async () => {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+
+            // Validar campos
+            if (!email || !password) {
+                showError('Por favor completa todos los campos');
+                return;
+            }
+
+            try {
+                // Mostrar spinner y deshabilitar botón
+                loginBtn.disabled = true;
+                loginSpinner.classList.remove('d-none');
+                loginError.classList.add('d-none');
+
+                // Iniciar sesión con Firebase
+                await signInWithEmailAndPassword(auth, email, password);
+                
+                // Mostrar mensaje de éxito y redirigir
+                loginForm.classList.add('d-none');
+                loginSuccess.classList.remove('d-none');
+                
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Error al iniciar sesión:', error);
+                showError('Usuario o contraseña incorrectos');
+            } finally {
+                loginBtn.disabled = false;
+                loginSpinner.classList.add('d-none');
+            }
+        });
+
+        // Función para mostrar errores
+        function showError(message) {
+            loginError.textContent = message;
+            loginError.classList.remove('d-none');
+        }
+
+        // Permitir enviar el formulario con Enter
+        [emailInput, passwordInput].forEach(input => {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    loginBtn.click();
+                }
+            });
+        });
+    </script>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,35 +1,340 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLC Reportes</title>
-    <link rel="stylesheet" href="style.css">
+    <title>CLC Reportes - Dashboard</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Estilos personalizados -->
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <header>
-        <h1>CLC Reportes</h1>
-        <p>Reportes de cumplimiento en sucursales</p>
-    </header>
-    <main>
-        <section>
-            <h2>Dashboard</h2>
-            <p>Visualización general de los reportes</p>
+    <!-- Barra de navegación -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-coffee me-2"></i>CLC Reportes
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-section="evaluaciones">
+                            <i class="fas fa-clipboard-check me-1"></i> Evaluaciones
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-section="reportes">
+                            <i class="fas fa-chart-bar me-1"></i> Reportes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-section="sucursales">
+                            <i class="fas fa-store me-1"></i> Sucursales
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown">
+                            <img src="https://ui-avatars.com/api/?name=Usuario&background=4a6cf7&color=fff" 
+                                 alt="Usuario" class="rounded-circle me-2" width="32" height="32">
+                            <span class="user-name">Usuario</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" data-section="perfil">
+                                <i class="fas fa-user me-2"></i>Perfil
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#" id="logout-btn">
+                                <i class="fas fa-sign-out-alt me-2"></i>Cerrar sesión
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenido principal -->
+    <main class="container-fluid py-4">
+        <!-- Sección de Dashboard -->
+        <section id="dashboard" class="section-content">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">Dashboard</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group me-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="export-pdf">
+                            <i class="fas fa-file-pdf me-1"></i> Exportar PDF
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="export-excel">
+                            <i class="fas fa-file-excel me-1"></i> Exportar Excel
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary" id="nueva-evaluacion">
+                        <i class="fas fa-plus me-1"></i> Nueva Evaluación
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form id="filtro-form" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="filtro-sucursal" class="form-label">Sucursal</label>
+                            <select class="form-select" id="filtro-sucursal">
+                                <option value="" selected>Todas las sucursales</option>
+                                <!-- Se llenará dinámicamente -->
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filtro-fecha-inicio" class="form-label">Fecha Inicio</label>
+                            <input type="date" class="form-control" id="filtro-fecha-inicio">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filtro-fecha-fin" class="form-label">Fecha Fin</label>
+                            <input type="date" class="form-control" id="filtro-fecha-fin">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-filter me-1"></i> Filtrar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tarjetas de resumen -->
+            <div class="row mb-4">
+                <div class="col-md-3 mb-3">
+                    <div class="card text-white bg-primary h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="card-title">Evaluaciones Totales</h6>
+                                    <h2 class="mb-0" id="total-evaluaciones">0</h2>
+                                </div>
+                                <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card text-white bg-success h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="card-title">Promedio General</h6>
+                                    <h2 class="mb-0"><span id="promedio-general">0</span>%</h2>
+                                </div>
+                                <i class="fas fa-chart-line fa-3x opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card text-white bg-warning h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="card-title">Evaluaciones del Mes</h6>
+                                    <h2 class="mb-0" id="evaluaciones-mes">0</h2>
+                                </div>
+                                <i class="fas fa-calendar-alt fa-3x opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card text-white bg-info h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="card-title">Sucursal Destacada</h6>
+                                    <h5 class="mb-0" id="sucursal-destacada">-</h5>
+                                    <small id="puntaje-sucursal">0% de cumplimiento</small>
+                                </div>
+                                <i class="fas fa-trophy fa-3x opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de evaluaciones recientes -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Evaluaciones Recientes</h5>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="solo-mis-evaluaciones" checked>
+                        <label class="form-check-label" for="solo-mis-evaluaciones">Solo mis evaluaciones</label>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="tabla-evaluaciones">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Sucursal</th>
+                                    <th>Evaluador</th>
+                                    <th>Puntaje</th>
+                                    <th>Estado</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Se llenará dinámicamente -->
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white">
+                    <nav aria-label="Navegación de la tabla">
+                        <ul class="pagination justify-content-center mb-0">
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Anterior</a>
+                            </li>
+                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                            <li class="page-item"><a class="page-link" href="#">2</a></li>
+                            <li class="page-item"><a class="page-link" href="#">3</a></li>
+                            <li class="page-item">
+                                <a class="page-link" href="#">Siguiente</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
         </section>
-        <section>
-            <h2>Reportes</h2>
-            <p>Reportes de cumplimiento en sucursales</p>
+
+        <!-- Otras secciones se agregarán aquí -->
+        <section id="evaluaciones" class="section-content">            <!-- Selector de mes para historial de evaluaciones -->
+            <div class="d-flex align-items-center mb-3">
+                <label for="selectorMes" class="me-2 mb-0">Mes:</label>
+                <input type="month" id="selectorMes" class="form-control" style="width: 200px;">
+            </div>
+
+            <!-- Tabla de historial de evaluaciones -->
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Sucursal</th>
+                        <th>Evaluador</th>
+                        <th>Puntaje</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaHistorialEvaluaciones">
+                    <!-- Aquí se llenan las filas dinámicamente -->
+                </tbody>
+            </table>
         </section>
-        <section>
-            <h2>Gráficos</h2>
-            <p>Gráficos de cumplimiento en sucursales</p>
+
+        <section id="reportes" class="section-content">
+            <div class="container py-4">
+                <h2 class="mb-4">Gráfica General de Puntuación por Sucursal</h2>
+                <canvas id="graficaSucursales" height="120"></canvas>
+            </div>
         </section>
-        
-        
+
+        <section id="sucursales" class="section-content d-none">
+            <!-- Contenido de Sucursales -->
+        </section>
+
+        <section id="perfil" class="section-content d-none">
+            <!-- Contenido de Perfil -->
+        </section>
+
+        <!-- Modal para nueva evaluación -->
+        <div class="modal fade" id="modalNuevaEvaluacion" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nueva Evaluación</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="form-nueva-evaluacion">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="sucursal" class="form-label">Sucursal</label>
+                                    <select class="form-select" id="sucursal" required>
+                                        <option value="" selected disabled>Seleccione una sucursal</option>
+                                        <!-- Se llenará dinámicamente -->
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="fecha" class="form-label">Fecha de Evaluación</label>
+                                    <input type="datetime-local" class="form-control" id="fecha" required>
+                                </div>
+                            </div>
+                            <div id="seccion-parametros">
+                                <!-- Se llenará dinámicamente con los parámetros -->
+                                <div class="text-center my-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando parámetros...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="observaciones" class="form-label">Observaciones</label>
+                                <textarea class="form-control" id="observaciones" rows="3"></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="guardar-evaluacion">
+                            <span class="spinner-border spinner-border-sm d-none" id="guardar-loading" role="status" aria-hidden="true"></span>
+                            Guardar Evaluación
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
-    <footer>
-        
+
+    <!-- Footer -->
+    <footer class="footer mt-auto py-3 bg-light">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-6">
+                    <span class="text-muted"> 2025 CLC Reportes - Sistema de Evaluación</span>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <span class="text-muted">Versión 1.0.0</span>
+                </div>
+            </div>
+        </div>
     </footer>
-    
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+    <script type="module" src="/js/app.js"></script>
 </body>
 </html>
