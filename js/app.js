@@ -1019,9 +1019,15 @@ function renderTablaHistorial(rows) {
       <td>${ev.puntaje}%</td>
       <td>${ev.estado}</td>
       <td>
-        <button class="btn btn-outline-primary btn-sm" onclick="verEvaluacion('${ev.id}')"><i class="bi bi-eye"></i></button>
-        ${esAdmin() ? `<button class="btn btn-outline-success btn-sm" onclick="editarEvaluacion('${ev.id}')"><i class="bi bi-pencil"></i></button>` : ''}
-        ${esAdmin() ? `<button class="btn btn-outline-danger btn-sm" onclick="eliminarEvaluacion('${ev.id}')"><i class="bi bi-trash"></i></button>` : ''}
+        <button class="btn btn-outline-primary btn-sm" title="Ver evaluación" onclick="verEvaluacion('${ev.id}')">
+          <i class="bi bi-eye-fill"></i>
+        </button>
+        ${esAdmin() ? `<button class="btn btn-outline-success btn-sm" title="Editar evaluación" onclick="editarEvaluacion('${ev.id}')">
+          <i class="bi bi-pencil-fill"></i>
+        </button>` : ''}
+        ${esAdmin() ? `<button class="btn btn-outline-danger btn-sm" title="Eliminar evaluación" onclick="eliminarEvaluacion('${ev.id}')">
+          <i class="bi bi-trash3-fill"></i>
+        </button>` : ''}
       </td>
     `;
     tbody.appendChild(tr);
@@ -1078,3 +1084,8 @@ document.addEventListener('sectionShown', (e) => {
     mostrarGraficaSucursales();
   }
 });
+
+// Hacer funciones globales para el HTML inline onclick
+window.verEvaluacion = verEvaluacion;
+window.editarEvaluacion = editarEvaluacion;
+window.eliminarEvaluacion = eliminarEvaluacion;
