@@ -1307,3 +1307,74 @@ function cargarSucursalesModal(tipo) {
     select.appendChild(option);
   });
 }
+
+// --- VALORES POR DEFECTO PARA PARÁMETROS DE EVALUACIÓN ---
+const valoresPorDefectoParametros = {
+  'bienvenida': 4,
+  'conocimiento_productos': 2,
+  'producto_mes': 3,
+  'venta_cruzada': 5,
+  'tocar_mesa': 2,
+  'app_cabana_cash': 4,
+  'ticket': 3,
+  'agradecimiento': 2,
+  'tiempo_espera_atencion': 3,
+  'tiempo_fila': 3,
+  'tiempo_espera_cafe': 0,
+  'cantidad_colaboradores': 1,
+  'anotar_vaso': 4,
+  'presentacion_cafe': 6,
+  'presentacion_alimento': 6,
+  'pin_personalizador': 2,
+  'colaboradores_limpios': 3,
+  'tableta': 3,
+  'fachada_limpia': 1,
+  'letrero': 1,
+  'jardineras': 2,
+  'iluminacion': 2,
+  'puertas_vidrios': 2,
+  'musica': 2,
+  'mostrador_limpio': 2,
+  'sillas_limpias': 2,
+  'piso_limpio': 3,
+  'banos_limpios': 2,
+  'botes_limpios': 2,
+  'barra_limpia': 1,
+  'panera_limpia': 1,
+  'clima_funcionando': 4,
+  'mesas_buen_estado': 3
+};
+
+// Autocompletar valores por defecto al cargar el formulario de evaluación
+function autocompletarParametrosPorDefecto() {
+  parametros.forEach(param => {
+    const valor = valoresPorDefectoParametros[param.id];
+    if (valor !== undefined) {
+      // Radios (opciones)
+      const radios = document.getElementsByName(param.id);
+      if (radios && radios.length > 0) {
+        radios.forEach(radio => {
+          if (String(radio.value) === String(valor)) {
+            radio.checked = true;
+          }
+        });
+      }
+      // Inputs tipo número
+      const input = document.getElementById(param.id);
+      if (input && input.type === 'number') {
+        input.value = valor;
+      }
+      // Inputs tipo rango/select
+      if (input && (input.tagName === 'SELECT' || input.type === 'range')) {
+        input.value = valor;
+      }
+    }
+  });
+}
+
+// Llama autocompletar después de cargar parámetros en el formulario
+const originalCargarParametrosEvaluacion = cargarParametrosEvaluacion;
+cargarParametrosEvaluacion = function() {
+  originalCargarParametrosEvaluacion();
+  autocompletarParametrosPorDefecto();
+};
