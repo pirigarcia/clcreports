@@ -133,7 +133,10 @@ async function initApp() {
         if (elements.userName) {
           elements.userName.textContent = state.currentUser.displayName;
         }
-        
+        // Mostrar/ocultar el botón aquí, cuando ya sabemos quién es el usuario
+        if (elements.btnNuevaEvaluacion) {
+          elements.btnNuevaEvaluacion.style.display = esAdmin() ? '' : 'none';
+        }
         // Cargar evaluaciones
         await cargarEvaluaciones();
       } else {
