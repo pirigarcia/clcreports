@@ -520,6 +520,18 @@ function actualizarTablaEvaluaciones() {
     `;
     tbody.appendChild(tr);
   });
+  // Agregar manejadores de eventos a los botones
+  tbody.querySelectorAll('.btn-ver-evaluacion').forEach(btn => {
+    btn.addEventListener('click', (e) => verEvaluacion(e.target.closest('button').dataset.id));
+  });
+  if (esAdmin()) {
+    tbody.querySelectorAll('.btn-editar-evaluacion').forEach(btn => {
+      btn.addEventListener('click', (e) => editarEvaluacion(e.target.closest('button').dataset.id));
+    });
+    tbody.querySelectorAll('.btn-eliminar-evaluacion').forEach(btn => {
+      btn.addEventListener('click', (e) => confirmarEliminarEvaluacion(e.target.closest('button').dataset.id));
+    });
+  }
 }
 
 // Ver los detalles de una evaluación
@@ -1271,4 +1283,27 @@ function mostrarOcultarModeloFranquicia() {
       grupoModelo.style.display = 'none';
     }
   }
+}
+
+// Llenar el select de sucursal/franquicia en el modal
+function cargarSucursalesModal(tipo) {
+  const select = elements.selectSucursal;
+  if (!select) return;
+  select.innerHTML = '<option value="" selected disabled>Seleccione una opción</option>';
+  let lista = [];
+  if (esAdmin()) {
+    // Mostrar ambas listas combinadas para admin
+    lista = [...sucursales, ...franquicias];
+  } else if (esFranquiciasUser()) {
+    lista = franquicias;
+  } else if (esGopUser()) {
+    lista = sucursales;
+  }
+  lista.forEach(item => {
+    if (!item.activa) return;
+    const option = document.createElement('option');
+    option.value = item.id;
+    option.textContent = item.nombre;
+    select.appendChild(option);
+  });
 }
