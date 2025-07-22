@@ -20,6 +20,7 @@ import {
   signOut 
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { sucursales, obtenerSucursalPorId } from '../data/sucursales.js';
+import { franquicias, obtenerFranquiciaPorId } from '../data/franquicias.js';
 import { categorias, parametros } from '../data/parametros.js';
 import { showSection, createElement, formatDate, showLoading, hideLoading, showNotification } from './utils/dom.js';
 
@@ -79,7 +80,9 @@ const elements = {
   selectSucursal: document.getElementById('sucursal'),
   inputFecha: document.getElementById('fecha'),
   seccionParametros: document.getElementById('seccion-parametros'),
-  inputObservaciones: document.getElementById('observaciones')
+  inputObservaciones: document.getElementById('observaciones'),
+  tipoCafeGroup: document.getElementById('tipo-cafe-group'),
+  tipoCafeSelect: document.getElementById('tipo-cafe')
 };
 
 // Inicialización de la aplicación
@@ -139,6 +142,8 @@ async function initApp() {
         if (elements.btnNuevaEvaluacion) {
           elements.btnNuevaEvaluacion.style.display = esAdmin() ? '' : 'none';
         }
+        // --- CORRECCIÓN: Establecer sucursales/franquicias visibles según el rol ---
+        state.sucursales = obtenerSucursalesVisibles();
         // Cargar evaluaciones
         await cargarEvaluaciones();
       } else {
@@ -156,12 +161,8 @@ async function initApp() {
 // Cargar sucursales desde el módulo
 async function cargarSucursales() {
   try {
-    state.sucursales = [...sucursales];
-    
-    // Llenar selectores de sucursales
+    state.sucursales = obtenerSucursalesVisibles();
     llenarSelectSucursales(elements.filtroSucursal, 'Todas las sucursales');
-    llenarSelectSucursales(elements.selectSucursal, 'Seleccione una sucursal');
-    
   } catch (error) {
     console.error('Error al cargar sucursales:', error);
     showNotification('Error al cargar las sucursales', 'error');
@@ -197,16 +198,25 @@ function llenarSelectSucursales(selectElement, placeholderText) {
 async function cargarEvaluaciones(filtros = {}) {
   try {
     showLoading();
-    
-    // Construir consulta
     let q = collection(db, 'evaluaciones');
     const condiciones = [];
-    
-    // Aplicar filtros
+    // Filtrar por sucursales/franquicias según usuario
+    if (!esAdmin()) {
+      const sucursalesPermitidas = state.sucursales.map(s => s.id);
+      if (sucursalesPermitidas.length > 0) {
+        condiciones.push(where('sucursalId', 'in', sucursalesPermitidas));
+      } else {
+        // Si no hay sucursales permitidas, no buscar nada
+        state.evaluaciones = [];
+        actualizarResumen();
+        actualizarTablaEvaluaciones();
+        hideLoading();
+        return;
+      }
+    }
     if (filtros.sucursalId) {
       condiciones.push(where('sucursalId', '==', filtros.sucursalId));
     }
-    
     if (filtros.fechaInicio || filtros.fechaFin) {
       const fechas = {};
       if (filtros.fechaInicio) fechas['>='] = new Date(filtros.fechaInicio);
@@ -215,41 +225,43 @@ async function cargarEvaluaciones(filtros = {}) {
         fechaFin.setHours(23, 59, 59, 999);
         fechas['<='] = fechaFin;
       }
-      condiciones.push(where('fecha', '>=', new Date(filtros.fechaInicio || '1970-01-01')));
+      if (fechas['>=']) condiciones.push(where('fecha', '>=', fechas['>=']));
+      if (fechas['<=']) condiciones.push(where('fecha', '<=', fechas['<=']));
     }
-    
-    // Solo las evaluaciones del usuario actual si está el filtro activo
-    const soloMisEvaluaciones = document.getElementById('solo-mis-evaluaciones')?.checked;
-    if (soloMisEvaluaciones && state.currentUser) {
-      condiciones.push(where('usuarioId', '==', state.currentUser.uid));
-    }
-    
-    // Ordenar por fecha descendente
-    condiciones.push(orderBy('fecha', 'desc'));
-    
-    // Aplicar condiciones a la consulta
+    // Construir la query
     if (condiciones.length > 0) {
       q = query(q, ...condiciones);
     }
-    
-    // Ejecutar consulta
+    console.log('[DEBUG] Sucursales locales:', sucursales.map(s => s.id));
+    console.log('[DEBUG] Franquicias locales:', franquicias.map(f => f.id));
+    console.log('[DEBUG] Sucursales permitidas para query:', state.sucursales.map(s => s.id));
+    console.log('[DEBUG] Es admin:', esAdmin());
+    console.log('[DEBUG] Query condiciones:', condiciones);
+
     const querySnapshot = await getDocs(q);
+
+    console.log('[DEBUG] Evaluaciones recibidas:', querySnapshot.size);
     state.evaluaciones = [];
-    
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      console.log('[DEBUG] Evaluación:', doc.id, data);
+      let tipo = '';
+      if (sucursales.find(s => s.id === data.sucursalId)) {
+        tipo = 'sucursal';
+      } else if (franquicias.find(f => f.id === data.sucursalId)) {
+        tipo = 'franquicia';
+      } else {
+        tipo = 'desconocido';
+      }
       state.evaluaciones.push({
         id: doc.id,
         ...data,
-        // Asegurar que la fecha sea un objeto Date
-        fecha: data.fecha?.toDate() || new Date()
+        fecha: data.fecha?.toDate() || new Date(),
+        tipo
       });
     });
-    
-    // Actualizar UI
     actualizarResumen();
     actualizarTablaEvaluaciones();
-    
   } catch (error) {
     console.error('Error al cargar evaluaciones:', error);
     showNotification('Error al cargar las evaluaciones', 'error');
@@ -260,18 +272,62 @@ async function cargarEvaluaciones(filtros = {}) {
 
 // Actualizar el resumen del dashboard
 function actualizarResumen() {
-  // Total de evaluaciones
+  // Totales generales y pendientes correctos
+  const total = state.evaluaciones.length;
+
+  // Listas completas
+  const totalSucursales = sucursales.length;
+  const totalFranquicias = franquicias.length;
+
+  // IDs evaluados
+  const sucursalesEvaluadas = new Set(
+    state.evaluaciones.filter(ev => ev.tipo === 'sucursal' && ev.completada).map(ev => ev.sucursalId)
+  );
+  const franquiciasEvaluadas = new Set(
+    state.evaluaciones.filter(ev => ev.tipo === 'franquicia' && ev.completada).map(ev => ev.sucursalId)
+  );
+
+  // Pendientes
+  const sucursalesPendientes = sucursales.filter(s => !sucursalesEvaluadas.has(s.id));
+  const franquiciasPendientes = franquicias.filter(f => !franquiciasEvaluadas.has(f.id));
+
+  // Mostrar totales en el dashboard
   if (elements.totalEvaluaciones) {
-    elements.totalEvaluaciones.textContent = state.evaluaciones.length;
+    if (esAdmin()) {
+      elements.totalEvaluaciones.innerHTML = `
+        <span class="fw-bold" style="font-size:2.2rem;">${total}</span> <span style="font-size:1.1rem;">evaluaciones</span>
+        <div class="mt-2 d-flex flex-wrap gap-1">
+          <span class="badge bg-primary text-wrap" style="font-size:0.95rem;">${totalSucursales} sucursales</span>
+          <span class="badge bg-info text-wrap" style="font-size:0.95rem;">${totalFranquicias} franquicias</span>
+          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${sucursalesPendientes.length} sucursal${sucursalesPendientes.length === 1 ? '' : 'es'} pendiente${sucursalesPendientes.length === 1 ? '' : 's'}</span>
+          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${franquiciasPendientes.length} franquicia${franquiciasPendientes.length === 1 ? '' : 's'} pendiente${franquiciasPendientes.length === 1 ? '' : 's'}</span>
+        </div>
+      `;
+    } else if (esFranquiciasUser()) {
+      elements.totalEvaluaciones.innerHTML = `
+        <span class="fw-bold" style="font-size:2.2rem;">${total}</span> <span style="font-size:1.1rem;">evaluaciones</span>
+        <div class="mt-2 d-flex flex-wrap gap-1">
+          <span class="badge bg-info text-wrap" style="font-size:0.95rem;">${totalFranquicias} franquicias</span>
+          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${franquiciasPendientes.length} franquicia${franquiciasPendientes.length === 1 ? '' : 's'} pendiente${franquiciasPendientes.length === 1 ? '' : 's'}</span>
+        </div>
+      `;
+    } else if (esGopUser()) {
+      elements.totalEvaluaciones.innerHTML = `
+        <span class="fw-bold" style="font-size:2.2rem;">${total}</span> <span style="font-size:1.1rem;">evaluaciones</span>
+        <div class="mt-2 d-flex flex-wrap gap-1">
+          <span class="badge bg-primary text-wrap" style="font-size:0.95rem;">${totalSucursales} sucursales</span>
+          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${sucursalesPendientes.length} sucursal${sucursalesPendientes.length === 1 ? '' : 'es'} pendiente${sucursalesPendientes.length === 1 ? '' : 's'}</span>
+        </div>
+      `;
+    }
   }
   
   // Promedio general
   if (elements.promedioGeneral) {
-    const promedio = state.evaluaciones.length > 0
-      ? Math.round(state.evaluaciones.reduce((sum, evaluacion) => sum + (evaluacion.puntajeTotal || 0), 0) / state.evaluaciones.length)
+    const promedio = total > 0
+      ? Math.round(state.evaluaciones.reduce((sum, evaluacion) => sum + (evaluacion.puntajeTotal || 0), 0) / total)
       : 0;
     elements.promedioGeneral.textContent = promedio;
-    
     // Cambiar color de fondo en Promedio General según regla
     const promedioGeneralCard = document.querySelector('#promedio-general')?.closest('.card');
     if (promedioGeneralCard) {
@@ -376,6 +432,13 @@ function actualizarResumen() {
         atencionCard.classList.add('atencion-animada');
         atencionCard.classList.remove('bg-warning');
       }
+      if (esAdmin()) {
+        elements.atencionTodasOk.textContent = '¡Todas las sucursales y franquicias cumplen al 100%!';
+      } else if (esFranquiciasUser()) {
+        elements.atencionTodasOk.textContent = '¡Todas las franquicias cumplen al 100%!';
+      } else {
+        elements.atencionTodasOk.textContent = '¡Todas las sucursales cumplen al 100%!';
+      }
     } else {
       promediosFiltrados.slice(0, 3).forEach(s => {
         const li = document.createElement('li');
@@ -386,37 +449,58 @@ function actualizarResumen() {
   }
 }
 
-// Actualizar la tabla de evaluaciones
+// Actualizar la tabla de evaluaciones recientes
 function actualizarTablaEvaluaciones() {
-  if (!elements.tablaEvaluaciones) return;
-  
-  const tbody = elements.tablaEvaluaciones.querySelector('tbody');
+  const tabla = document.getElementById('tabla-evaluaciones');
+  if (!tabla) return;
+  const tbody = tabla.querySelector('tbody');
   if (!tbody) return;
-  
   tbody.innerHTML = '';
-  
   if (state.evaluaciones.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td colspan="6" class="text-center py-4 text-muted">
+      <td colspan="8" class="text-center py-4 text-muted">
         No se encontraron evaluaciones
       </td>
     `;
     tbody.appendChild(tr);
     return;
   }
-  
-  state.evaluaciones.forEach(evaluacion => {
-    const sucursal = obtenerSucursalPorId(evaluacion.sucursalId) || { nombre: 'Desconocida' };
+  const sucursalesPermitidas = state.sucursales.map(s => s.id);
+  const evaluacionesFiltradas = esAdmin()
+    ? state.evaluaciones
+    : state.evaluaciones.filter(ev => sucursalesPermitidas.includes(ev.sucursalId));
+  evaluacionesFiltradas.forEach(evaluacion => {
+    let sucursal = { nombre: 'Desconocida' };
+    let modelo = 'Cafetería';
+    const tipo = evaluacion.tipo === 'sucursal' ? 'Sucursal' : evaluacion.tipo === 'franquicia' ? 'Franquicia' : 'Desconocido';
+    if (evaluacion.tipo === 'franquicia') {
+      sucursal = franquicias.find(f => f.id === evaluacion.sucursalId) || { nombre: 'Desconocida' };
+      if(['dosbocas','cumuapa'].includes(evaluacion.sucursalId)) {
+        modelo = 'Móvil';
+      } else {
+        modelo = 'Cafetería';
+      }
+    } else {
+      sucursal = obtenerSucursalPorId(evaluacion.sucursalId) || { nombre: 'Desconocida' };
+      if(['movil-la-venta', 'movil-deportiva'].includes(evaluacion.sucursalId)) {
+        modelo = 'Móvil';
+      } else if(['walmart-deportiva', 'walmart-carrizal', 'walmart-universidad', 'pista'].includes(evaluacion.sucursalId)) {
+        modelo = 'Express';
+      } else {
+        modelo = 'Cafetería';
+      }
+    }
     const fecha = formatDate(evaluacion.fecha, 'DD/MM/YYYY HH:mm');
     const estado = evaluacion.completada ? 'Completada' : 'Pendiente';
     const estadoClass = evaluacion.completada ? 'success' : 'warning';
-    
     const tr = document.createElement('tr');
     tr.className = 'fade-in';
     tr.innerHTML = `
       <td>${fecha}</td>
       <td>${sucursal.nombre}</td>
+      <td>${tipo}</td>
+      <td>${modelo}</td>
       <td>${evaluacion.usuarioNombre || 'Anónimo'}</td>
       <td>${evaluacion.puntajeTotal || 0}%</td>
       <td><span class="badge bg-${estadoClass}">${estado}</span></td>
@@ -424,29 +508,17 @@ function actualizarTablaEvaluaciones() {
         <button class="btn btn-sm btn-outline-primary btn-ver-evaluacion" data-id="${evaluacion.id}">
           <i class="fas fa-eye"></i>
         </button>
+        ${esAdmin() ? `
         <button class="btn btn-sm btn-outline-secondary btn-editar-evaluacion ms-1" data-id="${evaluacion.id}">
           <i class="fas fa-edit"></i>
         </button>
         <button class="btn btn-sm btn-outline-danger btn-eliminar-evaluacion ms-1" data-id="${evaluacion.id}">
           <i class="fas fa-trash"></i>
         </button>
+        ` : ''}
       </td>
     `;
-    
     tbody.appendChild(tr);
-  });
-  
-  // Agregar manejadores de eventos a los botones
-  document.querySelectorAll('.btn-ver-evaluacion').forEach(btn => {
-    btn.addEventListener('click', (e) => verEvaluacion(e.target.closest('button').dataset.id));
-  });
-  
-  document.querySelectorAll('.btn-editar-evaluacion').forEach(btn => {
-    btn.addEventListener('click', (e) => editarEvaluacion(e.target.closest('button').dataset.id));
-  });
-  
-  document.querySelectorAll('.btn-eliminar-evaluacion').forEach(btn => {
-    btn.addEventListener('click', (e) => confirmarEliminarEvaluacion(e.target.closest('button').dataset.id));
   });
 }
 
@@ -468,8 +540,11 @@ function verEvaluacion(evaluacionId) {
 
 // Editar una evaluación existente
 function esAdmin() {
+  const adminEmails = [
+    'unknownshoppersmx@gmail.com',
+  ];
   // Ajusta esta lógica según cómo determines el rol admin en tu app
-  return state.currentUser && state.currentUser.email === 'unknownshoppersmx@gmail.com';
+  return state.currentUser && adminEmails.includes(state.currentUser.email);
 }
 
 function editarEvaluacion(evaluacionId) {
@@ -722,8 +797,12 @@ async function guardarEvaluacion() {
     // Mostrar indicador de carga
     showLoading('Guardando evaluación...');
 
-    // Obtener la sucursal seleccionada
-    const sucursal = state.sucursales.find(s => s.id === sucursalId);
+    // Obtener la sucursal o franquicia seleccionada
+    let sucursal = state.sucursales.find(s => s.id === sucursalId);
+    if (!sucursal) {
+      // Buscar en franquicias si no se encontró en sucursales
+      sucursal = franquicias.find(f => f.id === sucursalId);
+    }
     if (!sucursal) {
       throw new Error('No se encontró la sucursal seleccionada');
     }
@@ -897,7 +976,7 @@ function setupEventListeners() {
         // Cargar las sucursales en el select
         if (elements.selectSucursal) {
           console.log('Cargando sucursales en el select');
-          llenarSelectSucursales(elements.selectSucursal, 'Seleccione una sucursal');
+          //llenarSelectSucursales(elements.selectSucursal, 'Seleccione una sucursal');
         } else {
           console.error('No se encontró el select de sucursales');
         }
@@ -955,82 +1034,95 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Función para crear usuarios iniciales (solo ejecutar una vez)
-async function crearUsuariosIniciales() {
-  try {
-    // Verificar que el usuario actual sea administrador
-    if (!state.currentUser || state.currentUser.email !== 'unknownshoppers@gmail.com') {
-      console.log('No tienes permisos para crear usuarios');
-      return;
-    }
-
-    // Usuarios a crear
-    const usuarios = [
-      {
-        email: 'unknownshoppers@gmail.com',
-        nombre: 'Administrador',
-        rol: 'admin',
-        activo: true,
-        fechaCreacion: serverTimestamp(),
-        fechaActualizacion: serverTimestamp()
-      },
-      {
-        email: 'gop@cafelacabana.com',
-        nombre: 'Usuario Gestion Operativa',
-        rol: 'usuario',
-        activo: true,
-        fechaCreacion: serverTimestamp(),
-        fechaActualizacion: serverTimestamp()
-      }
-    ];
-
-    // Referencia a la colección de usuarios
-    const usuariosRef = collection(db, 'usuarios');
-    
-    // Verificar y crear cada usuario
-    for (const usuario of usuarios) {
-      // Verificar si el usuario ya existe
-      const q = query(usuariosRef, where('email', '==', usuario.email));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        // Crear el usuario si no existe
-        await addDoc(usuariosRef, usuario);
-        console.log(`Usuario ${usuario.email} creado exitosamente`);
-      } else {
-        console.log(`El usuario ${usuario.email} ya existe`);
-      }
-    }
-    
-    showNotification('Usuarios verificados/creados correctamente', 'success');
-  } catch (error) {
-    console.error('Error al crear usuarios iniciales:', error);
-    showNotification('Error al crear usuarios: ' + error.message, 'error');
-  }
+// Recargar el select de sucursal/franquicia cada vez que se abre el modal
+const modalNuevaEvaluacionEl = document.getElementById('modalNuevaEvaluacion');
+if (modalNuevaEvaluacionEl) {
+  modalNuevaEvaluacionEl.addEventListener('show.bs.modal', () => {
+    const tipo = esAdmin() && elements.tipoCafeSelect ? elements.tipoCafeSelect.value : (esFranquiciasUser() ? 'franquicia' : 'sucursal');
+    cargarSucursalesModal(tipo);
+  });
 }
+
+// Evento para mostrar/ocultar al cambiar tipo
+if (elements.tipoCafeSelect) {
+  elements.tipoCafeSelect.addEventListener('change', mostrarOcultarModeloFranquicia);
+}
+// Evento para actualizar modelo al cambiar sucursal/franquicia seleccionada
+if (elements.selectSucursal) {
+  elements.selectSucursal.addEventListener('change', mostrarOcultarModeloFranquicia);
+}
+
+// Al abrir el modal, establecer visibilidad correcta
+// Ya existe modalNuevaEvaluacionEl arriba, solo úsala aquí sin el 'const'
+modalNuevaEvaluacionEl.addEventListener('show.bs.modal', mostrarOcultarModeloFranquicia);
+
+// --- INICIO LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
+// Lista de franquicias (nombre exacto)
+const NOMBRES_FRANQUICIAS = [
+  'Vía 2',
+  'City center',
+  'Cárdenas',
+  'Paraíso',
+  'Dos Bocas',
+  'Cumuapa',
+  'Cunduacán',
+  'Jalpa de Méndez',
+  'Cd del Cármen'
+];
+
+function esFranquiciasUser() {
+  return state.currentUser && state.currentUser.email === 'franquicias@cafelacabana.com';
+}
+
+function esGopUser() {
+  return state.currentUser && state.currentUser.email === 'gop@cafelacabana.com';
+}
+
+// Filtra las sucursales según el usuario logueado
+function obtenerSucursalesVisibles() {
+  if (esAdmin()) return [...sucursales, ...franquicias];
+  if (esFranquiciasUser()) {
+    return [...franquicias];
+  }
+  if (esGopUser()) {
+    return [...sucursales];
+  }
+  return [];
+}
+
+// --- FIN LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
 
 // Inicializar la aplicación cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
+  // Ocultar todas las secciones excepto dashboard al cargar
+  document.querySelectorAll('.section-content').forEach(sec => {
+    if (sec.id === 'dashboard') {
+      sec.style.display = '';
+    } else {
+      sec.style.display = 'none';
+    }
+  });
+
+  // Manejar clics en la barra de navegación
+  elements.navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const section = link.getAttribute('data-section');
+      document.querySelectorAll('.section-content').forEach(sec => {
+        sec.style.display = (sec.id === section) ? '' : 'none';
+      });
+      // Lanzar evento personalizado para lógica extra si es necesario
+      document.dispatchEvent(new CustomEvent('sectionShown', { detail: { sectionId: section } }));
+    });
+  });
+
   initApp().catch(error => {
     console.error('Error al inicializar la aplicación:', error);
     showNotification('Error al iniciar la aplicación', 'error');
   });
 });
 
-// --- HISTORIAL DE EVALUACIONES POR MES ---
-document.addEventListener('DOMContentLoaded', () => {
-  const selectorMes = document.getElementById('selectorMes');
-  if (selectorMes) {
-    // Valor por defecto: mes actual
-    const now = new Date();
-    selectorMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    cargarHistorialEvaluaciones(selectorMes.value);
-    selectorMes.addEventListener('change', () => {
-      cargarHistorialEvaluaciones(selectorMes.value);
-    });
-  }
-});
-
+// --- GRÁFICA GENERAL DE SUCURSALES ---
 async function cargarHistorialEvaluaciones(yyyymm) {
   console.log('Cargando historial para:', yyyymm);
   
@@ -1084,13 +1176,13 @@ function renderTablaHistorial(rows) {
       <td>${ev.estado}</td>
       <td>
         <button class="btn btn-outline-primary btn-sm" title="Ver evaluación" onclick="verEvaluacion('${ev.id}')">
-          <i class="bi bi-eye-fill"></i>
+          <i class="fas fa-eye"></i>
         </button>
         ${esAdmin() ? `<button class="btn btn-outline-success btn-sm" title="Editar evaluación" onclick="editarEvaluacion('${ev.id}')">
-          <i class="bi bi-pencil-fill"></i>
+          <i class="fas fa-pencil-fill"></i>
         </button>` : ''}
         ${esAdmin() ? `<button class="btn btn-outline-danger btn-sm" title="Eliminar evaluación" onclick="eliminarEvaluacion('${ev.id}')">
-          <i class="bi bi-trash3-fill"></i>
+          <i class="fas fa-trash"></i>
         </button>` : ''}
       </td>
     `;
@@ -1098,7 +1190,7 @@ function renderTablaHistorial(rows) {
   });
 }
 
-// --- GRÁFICA GENERAL DE SUCURSALES ---
+// --- HISTORIAL DE EVALUACIONES POR MES ---
 let graficaSucursales = null;
 
 function mostrarGraficaSucursales() {
@@ -1159,3 +1251,24 @@ document.addEventListener('sectionShown', (e) => {
 window.verEvaluacion = verEvaluacion;
 window.editarEvaluacion = editarEvaluacion;
 window.eliminarEvaluacion = eliminarEvaluacion;
+
+// Mostrar u ocultar el selector de modelo de franquicia en el modal según el tipo seleccionado
+function mostrarOcultarModeloFranquicia() {
+  const grupoModelo = document.getElementById('grupo-modelo-franquicia');
+  const selectModelo = document.getElementById('modelo-franquicia');
+  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
+  if (grupoModelo && selectModelo) {
+    if (tipo === 'franquicia') {
+      grupoModelo.style.display = '';
+      // Si la franquicia ya tiene modelo, seleccionarlo
+      const franquiciaSeleccionada = franquicias.find(f => f.id === (elements.selectSucursal ? elements.selectSucursal.value : ''));
+      if (franquiciaSeleccionada && franquiciaSeleccionada.modelo) {
+        selectModelo.value = franquiciaSeleccionada.modelo;
+      } else {
+        selectModelo.value = 'Cafetería';
+      }
+    } else {
+      grupoModelo.style.display = 'none';
+    }
+  }
+}

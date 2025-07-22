@@ -175,57 +175,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Tabla de evaluaciones recientes -->
-            <!-- <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Evaluaciones Recientes</h5>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="solo-mis-evaluaciones" checked>
-                        <label class="form-check-label" for="solo-mis-evaluaciones">Solo mis evaluaciones</label>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0" id="tabla-evaluaciones">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Sucursal</th>
-                                    <th>Evaluador</th>
-                                    <th>Puntaje</th>
-                                    <th>Estadox</th>
-                                    <th class="text-end">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="6" class="text-center py-4">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Cargando...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer bg-white">
-                    <nav aria-label="Navegación de la tabla">
-                        <ul class="pagination justify-content-center mb-0">
-                            <li class="page-item disabled">
-                                <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Anterior</a>
-                            </li>
-                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                            <li class="page-item"><a class="page-link" href="#">2</a></li>
-                            <li class="page-item"><a class="page-link" href="#">3</a></li>
-                            <li class="page-item">
-                                <a class="page-link" href="#">Siguiente</a>
-                            </li>
-                        </ul>
-                    </nav>
-                </div>
-            </div> -->
         </section>
 
         <!-- Otras secciones se agregarán aquí -->
@@ -251,11 +200,64 @@
                     <!-- Aquí se llenan las filas dinámicamente -->
                 </tbody>
             </table>
+            
+            <!-- Tabla de evaluaciones recientes -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Evaluaciones Recientes</h5>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="solo-mis-evaluaciones" checked>
+                        <label class="form-check-label" for="solo-mis-evaluaciones">Solo mis evaluaciones</label>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="tabla-evaluaciones">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Sucursal</th>
+                                    <th>Tipo</th>
+                                    <th>Modelo</th>
+                                    <th>Evaluador</th>
+                                    <th>Puntaje</th>
+                                    <th>Estado</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white">
+                    <nav aria-label="Navegación de la tabla">
+                        <ul class="pagination justify-content-center mb-0">
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Anterior</a>
+                            </li>
+                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                            <li class="page-item"><a class="page-link" href="#">2</a></li>
+                            <li class="page-item"><a class="page-link" href="#">3</a></li>
+                            <li class="page-item">
+                                <a class="page-link" href="#">Siguiente</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
         </section>
 
         <section id="reportes" class="section-content">
             <div class="container py-4">
-                <h2 class="mb-4">Gráfica General de Puntuación por Sucursal</h2>
+                <!-- <h2 class="mb-4">Gráfica General de Puntuación por Sucursal</h2> -->
                 <canvas id="graficaSucursales" height="120"></canvas>
             </div>
         </section>
@@ -279,16 +281,33 @@
                     <div class="modal-body">
                         <form id="form-nueva-evaluacion">
                             <div class="row mb-3">
+                                <!-- Selector de tipo solo para admin -->
+                                <div class="col-md-6" id="tipo-cafe-group" style="display:none">
+                                    <label for="tipo-cafe" class="form-label">Tipo</label>
+                                    <select class="form-select" id="tipo-cafe">
+                                        <option value="sucursal">Sucursal</option>
+                                        <option value="franquicia">Franquicia</option>
+                                    </select>
+                                </div>
                                 <div class="col-md-6">
-                                    <label for="sucursal" class="form-label">Sucursal</label>
+                                    <label for="sucursal" class="form-label">Sucursal/Franquicia</label>
                                     <select class="form-select" id="sucursal" required>
-                                        <option value="" selected disabled>Seleccione una sucursal</option>
+                                        <option value="" selected disabled>Seleccione una opción</option>
                                         <!-- Se llenará dinámicamente -->
                                     </select>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="fecha" class="form-label">Fecha de Evaluación</label>
                                     <input type="datetime-local" class="form-control" id="fecha" required>
+                                </div>
+                                <!-- Selector de modelo de franquicia, solo visible para admin y franquicia -->
+                                <div class="col-md-6" id="grupo-modelo-franquicia" style="display:none">
+                                    <label for="modelo-franquicia" class="form-label">Modelo de Franquicia</label>
+                                    <select class="form-select" id="modelo-franquicia">
+                                        <option value="Cafetería">Cafetería</option>
+                                        <option value="Express">Express</option>
+                                        <option value="Móvil">Móvil</option>
+                                    </select>
                                 </div>
                             </div>
                             <div id="seccion-parametros">
