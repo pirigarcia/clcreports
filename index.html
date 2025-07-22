@@ -18,7 +18,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">
-                <i class="fas fa-coffee me-2"></i>CLC Reportes
+                <img src="img/logch.png" alt="logo" width="150px">
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -73,7 +73,7 @@
         <!-- Sección de Dashboard -->
         <section id="dashboard" class="section-content">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h1 class="h2">Dashboard</h1>
+                <h1 class="h2">Dashboard - Evaluaciones CLC</h1>
                 <div class="btn-toolbar mb-2 mb-md-0">
                     <div class="btn-group me-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" id="export-pdf">
@@ -90,14 +90,13 @@
             </div>
 
             <!-- Filtros -->
-            <div class="card mb-4">
+            <!-- <div class="card mb-4">
                 <div class="card-body">
                     <form id="filtro-form" class="row g-3">
                         <div class="col-md-4">
                             <label for="filtro-sucursal" class="form-label">Sucursal</label>
                             <select class="form-select" id="filtro-sucursal">
                                 <option value="" selected>Todas las sucursales</option>
-                                <!-- Se llenará dinámicamente -->
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -115,7 +114,7 @@
                         </div>
                     </form>
                 </div>
-            </div>
+            </div> -->
 
             <!-- Tarjetas de resumen -->
             <div class="row mb-4">
@@ -145,15 +144,18 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-3 mb-3" id="atencion-block">
                     <div class="card text-white bg-warning h-100">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h6 class="card-title">Evaluaciones del Mes</h6>
-                                    <h2 class="mb-0" id="evaluaciones-mes">0</h2>
+                                    <h6 class="card-title">Atención</h6>
+                                    <ul class="mb-0" id="atencion-sucursales" style="list-style: none; padding-left: 0;"></ul>
+                                    <div id="atencion-todas-ok" class="text-success fw-bold" style="display:none;">
+                                        ¡Todas las sucursales cumplen al 100%!
+                                    </div>
                                 </div>
-                                <i class="fas fa-calendar-alt fa-3x opacity-50"></i>
+                                <i class="fas fa-exclamation-triangle fa-3x opacity-50"></i>
                             </div>
                         </div>
                     </div>

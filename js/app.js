@@ -62,6 +62,8 @@ const elements = {
   sucursalDestacada: document.getElementById('sucursal-destacada'),
   puntajeSucursal: document.getElementById('puntaje-sucursal'),
   tablaEvaluaciones: document.getElementById('tabla-evaluaciones'),
+  atencionSucursales: document.getElementById('atencion-sucursales'),
+  atencionTodasOk: document.getElementById('atencion-todas-ok'),
   
   // Filtros
   filtroForm: document.getElementById('filtro-form'),
@@ -269,6 +271,19 @@ function actualizarResumen() {
       ? Math.round(state.evaluaciones.reduce((sum, evaluacion) => sum + (evaluacion.puntajeTotal || 0), 0) / state.evaluaciones.length)
       : 0;
     elements.promedioGeneral.textContent = promedio;
+    
+    // Cambiar color de fondo en Promedio General según regla
+    const promedioGeneralCard = document.querySelector('#promedio-general')?.closest('.card');
+    if (promedioGeneralCard) {
+      promedioGeneralCard.classList.remove('bg-success', 'bg-warning', 'bg-danger');
+      if (promedio >= 96) {
+        promedioGeneralCard.classList.add('bg-success');
+      } else if (promedio >= 91) {
+        promedioGeneralCard.classList.add('bg-warning');
+      } else {
+        promedioGeneralCard.classList.add('bg-danger');
+      }
+    }
   }
   
   // Evaluaciones del mes actual
@@ -323,6 +338,50 @@ function actualizarResumen() {
     } else {
       elements.sucursalDestacada.textContent = '-';
       elements.puntajeSucursal.textContent = 'No hay datos';
+    }
+  }
+  
+  // --- BLOQUE DE ATENCIÓN (SUCURSALES CON BAJO PROMEDIO) ---
+  if (elements.atencionSucursales && elements.atencionTodasOk) {
+    const atencionCard = document.querySelector('#atencion-block .card');
+    // Calcular promedios por sucursal
+    const sucursalesMap = {};
+    state.evaluaciones.forEach(ev => {
+      if (!ev.sucursalId) return;
+      if (!sucursalesMap[ev.sucursalId]) {
+        sucursalesMap[ev.sucursalId] = { nombre: ev.sucursalNombre, total: 0, count: 0 };
+      }
+      sucursalesMap[ev.sucursalId].total += ev.puntajeTotal || 0;
+      sucursalesMap[ev.sucursalId].count++;
+    });
+    // Calcular promedio y preparar arreglo
+    const promedios = Object.values(sucursalesMap).map(s => ({
+      nombre: s.nombre,
+      promedio: s.count ? Math.round(s.total / s.count) : 0
+    }));
+    // Filtrar solo sucursales con promedio menor a 100%
+    const promediosFiltrados = promedios.filter(s => s.promedio < 100);
+    // Revisar si todas cumplen al 100%
+    const todasOk = promedios.length > 0 && promediosFiltrados.length === 0;
+    elements.atencionSucursales.innerHTML = '';
+    elements.atencionTodasOk.style.display = 'none';
+    // Limpiar animación previa y restaurar fondo amarillo
+    if (atencionCard) {
+      atencionCard.classList.remove('atencion-animada');
+      atencionCard.classList.add('bg-warning');
+    }
+    if (todasOk) {
+      elements.atencionTodasOk.style.display = '';
+      if (atencionCard) {
+        atencionCard.classList.add('atencion-animada');
+        atencionCard.classList.remove('bg-warning');
+      }
+    } else {
+      promediosFiltrados.slice(0, 3).forEach(s => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="fw-bold">${s.nombre}</span>: <span class="text-danger">${s.promedio}%</span>`;
+        elements.atencionSucursales.appendChild(li);
+      });
     }
   }
 }
@@ -440,8 +499,8 @@ function confirmarEliminarEvaluacion(evaluacionId) {
 // Eliminar una evaluación
 async function eliminarEvaluacion(evaluacionId) {
   try {
-    showLoading('Eliminando evaluación...');
-    console.log('Intentando eliminar evaluación:', evaluacionId);
+    showLoading();
+    
     // Eliminar de Firestore
     await deleteDoc(doc(db, 'evaluaciones', evaluacionId));
     // Actualizar UI (historial y resumen)
@@ -500,23 +559,19 @@ function cargarParametrosEvaluacion() {
         const cardBody = document.createElement('div');
         cardBody.className = 'card-body';
 
-        // Título del parámetro
-        const tituloParam = document.createElement('h6');
-        tituloParam.className = 'card-title';
-        tituloParam.textContent = parametro.nombre;
+        // --- NUEVO DISEÑO: parámetro y opciones en una sola fila ---
+        const filaParam = document.createElement('div');
+        filaParam.className = 'd-flex align-items-center flex-wrap gap-3';
 
-        // Descripción del parámetro (si existe)
-        if (parametro.descripcion) {
-          const descParam = document.createElement('p');
-          descParam.className = 'card-text text-muted small';
-          descParam.textContent = parametro.descripcion;
-          cardBody.appendChild(descParam);
-        }
+        // Título del parámetro
+        const tituloParam = document.createElement('span');
+        tituloParam.className = 'fw-semibold';
+        tituloParam.textContent = parametro.nombre;
+        filaParam.appendChild(tituloParam);
 
         // Opciones 1 (Sí/Cumple) y 0 (No/No cumple) para todos los parámetros
         const opcionesDiv = document.createElement('div');
-        opcionesDiv.className = 'opciones-puntuacion mt-2';
-
+        opcionesDiv.className = 'opciones-puntuacion';
         // Sí/Cumple
         const opcionSiDiv = document.createElement('div');
         opcionSiDiv.className = 'form-check form-check-inline';
@@ -535,7 +590,6 @@ function cargarParametrosEvaluacion() {
         opcionSiDiv.appendChild(inputSi);
         opcionSiDiv.appendChild(labelSi);
         opcionesDiv.appendChild(opcionSiDiv);
-
         // No/No cumple
         const opcionNoDiv = document.createElement('div');
         opcionNoDiv.className = 'form-check form-check-inline';
@@ -554,9 +608,16 @@ function cargarParametrosEvaluacion() {
         opcionNoDiv.appendChild(labelNo);
         opcionesDiv.appendChild(opcionNoDiv);
 
-        // Agregar elementos al contenedor del parámetro
-        cardBody.appendChild(tituloParam);
-        cardBody.appendChild(opcionesDiv);
+        filaParam.appendChild(opcionesDiv);
+        cardBody.appendChild(filaParam);
+
+        // Descripción del parámetro (si existe)
+        if (parametro.descripcion) {
+          const descParam = document.createElement('p');
+          descParam.className = 'card-text text-muted small mb-0';
+          descParam.textContent = parametro.descripcion;
+          cardBody.appendChild(descParam);
+        }
         parametroDiv.appendChild(cardBody);
         parametrosContainer.appendChild(parametroDiv);
       });
@@ -975,7 +1036,7 @@ async function cargarHistorialEvaluaciones(yyyymm) {
   
   // yyyy-mm
   const [year, month] = yyyymm.split('-');
-  const inicio = new Date(Number(year), Number(month) - 1, 1, 0, 0, 0);
+  const inicio = new Date(Number(year), Number(month) - 1, 1);
   const fin = new Date(Number(year), Number(month), 1, 0, 0, 0); // primer día del mes siguiente
 
   // LOG: Verifica el rango de fechas
@@ -1061,6 +1122,12 @@ function mostrarGraficaSucursales() {
   if (graficaSucursales) {
     graficaSucursales.destroy();
   }
+  // Asignar color según el puntaje de cada sucursal
+  const backgroundColors = data.map(score => {
+    if (score >= 96) return '#198754'; // verde (Bootstrap bg-success)
+    if (score >= 91) return '#ffc107'; // amarillo (Bootstrap bg-warning)
+    return '#dc3545'; // rojo (Bootstrap bg-danger)
+  });
   graficaSucursales = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1068,7 +1135,7 @@ function mostrarGraficaSucursales() {
       datasets: [{
         label: 'Puntaje promedio (%)',
         data: data,
-        backgroundColor: 'rgba(54, 162, 235, 0.7)'
+        backgroundColor: backgroundColors
       }]
     },
     options: {
