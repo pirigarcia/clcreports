@@ -21,7 +21,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { sucursales, obtenerSucursalPorId } from '../data/sucursales.js';
 import { franquicias, obtenerFranquiciaPorId } from '../data/franquicias.js';
-import { categorias, parametros } from '../data/parametros.js';
+import { categorias, parametros as parametrosData } from '../data/parametros.js';
+window.valores = parametrosData;
 import { showSection, createElement, formatDate, showLoading, hideLoading, showNotification } from './utils/dom.js';
 
 // Configuración de Firebase
@@ -610,56 +611,52 @@ async function eliminarEvaluacion(evaluacionId) {
 function cargarParametrosEvaluacion() {
   if (!elements.seccionParametros) return;
   elements.seccionParametros.innerHTML = '';
-
-  // Para cada categoría, buscar parámetros asociados
+  const esMovil = esEvaluacionMovil();
   categorias.forEach((categoria) => {
     const categoriaDiv = document.createElement('div');
     categoriaDiv.className = 'categoria-evaluacion mb-4';
     categoriaDiv.dataset.categoriaId = categoria.id;
-
-    // Título de la categoría
     const tituloCategoria = document.createElement('h5');
     tituloCategoria.className = 'mb-3';
     tituloCategoria.textContent = categoria.nombre;
     categoriaDiv.appendChild(tituloCategoria);
-
-    // Descripción de la categoría (si existe)
     if (categoria.descripcion) {
       const descCategoria = document.createElement('p');
       descCategoria.className = 'text-muted small mb-3';
       descCategoria.textContent = categoria.descripcion;
       categoriaDiv.appendChild(descCategoria);
     }
-
-    // Contenedor de parámetros
     const parametrosContainer = document.createElement('div');
     parametrosContainer.className = 'parametros-container';
-
-    // Buscar parámetros por categoriaId
-    const parametrosCategoria = parametros.filter(p => p.categoriaId === categoria.id);
+    let parametrosCategoria = window.valores.filter(p => p.categoriaId === categoria.id);
+    console.log('[DEBUG] Categoria actual:', categoria.id, categoria.nombre);
+    console.log('[DEBUG] Parametros antes de filtrar:', parametrosCategoria.map(p => p.id));
+    if (esMovil) {
+      console.log('[DEBUG] Filtrando parámetros excluidos para móvil:', parametrosExcluidosMovil);
+      parametrosCategoria = parametrosCategoria.filter(p => {
+        const excluir = parametrosExcluidosMovil.includes(p.id);
+        if (excluir) console.log('[DEBUG] Excluyendo parámetro:', p.id, p.nombre);
+        return !excluir;
+      });
+      console.log('[DEBUG] Parametros después de filtrar:', parametrosCategoria.map(p => p.id));
+    } else {
+      console.log('[DEBUG] No es móvil, no se filtra ningún parámetro');
+    }
     if (parametrosCategoria.length > 0) {
       parametrosCategoria.forEach((parametro, paramIndex) => {
         const parametroDiv = document.createElement('div');
         parametroDiv.className = 'parametro-evaluacion card mb-3';
         parametroDiv.dataset.parametroId = parametro.id;
-
         const cardBody = document.createElement('div');
         cardBody.className = 'card-body';
-
-        // --- NUEVO DISEÑO: parámetro y opciones en una sola fila ---
         const filaParam = document.createElement('div');
         filaParam.className = 'd-flex align-items-center flex-wrap gap-3';
-
-        // Título del parámetro
         const tituloParam = document.createElement('span');
         tituloParam.className = 'fw-semibold';
         tituloParam.textContent = parametro.nombre;
         filaParam.appendChild(tituloParam);
-
-        // Opciones 1 (Sí/Cumple) y 0 (No/No cumple) para todos los parámetros
         const opcionesDiv = document.createElement('div');
         opcionesDiv.className = 'opciones-puntuacion';
-        // Sí/Cumple
         const opcionSiDiv = document.createElement('div');
         opcionSiDiv.className = 'form-check form-check-inline';
         const inputSi = document.createElement('input');
@@ -677,7 +674,6 @@ function cargarParametrosEvaluacion() {
         opcionSiDiv.appendChild(inputSi);
         opcionSiDiv.appendChild(labelSi);
         opcionesDiv.appendChild(opcionSiDiv);
-        // No/No cumple
         const opcionNoDiv = document.createElement('div');
         opcionNoDiv.className = 'form-check form-check-inline';
         const inputNo = document.createElement('input');
@@ -694,11 +690,8 @@ function cargarParametrosEvaluacion() {
         opcionNoDiv.appendChild(inputNo);
         opcionNoDiv.appendChild(labelNo);
         opcionesDiv.appendChild(opcionNoDiv);
-
         filaParam.appendChild(opcionesDiv);
         cardBody.appendChild(filaParam);
-
-        // Descripción del parámetro (si existe)
         if (parametro.descripcion) {
           const descParam = document.createElement('p');
           descParam.className = 'card-text text-muted small mb-0';
@@ -709,7 +702,6 @@ function cargarParametrosEvaluacion() {
         parametrosContainer.appendChild(parametroDiv);
       });
     } else {
-      // Mensaje si no hay parámetros en la categoría
       const sinParametros = document.createElement('div');
       sinParametros.className = 'alert alert-info';
       sinParametros.textContent = 'No hay parámetros definidos para esta categoría.';
@@ -718,13 +710,18 @@ function cargarParametrosEvaluacion() {
     categoriaDiv.appendChild(parametrosContainer);
     elements.seccionParametros.appendChild(categoriaDiv);
   });
+  autocompletarParametrosPorDefecto();
 }
 
 // Rellenar el formulario de evaluación con datos existentes y modo lectura/editable
 function rellenarFormularioEvaluacion(evaluacion, modoLectura = false) {
   // Fecha
   if (elements.inputFecha) {
-    elements.inputFecha.value = new Date(evaluacion.fecha).toISOString().slice(0, 16);
+    if (evaluacion.fecha && !isNaN(new Date(evaluacion.fecha).getTime())) {
+      elements.inputFecha.value = new Date(evaluacion.fecha).toISOString().slice(0, 16);
+    } else {
+      elements.inputFecha.value = '';
+    }
     elements.inputFecha.disabled = modoLectura;
   }
   // Sucursal
@@ -739,7 +736,20 @@ function rellenarFormularioEvaluacion(evaluacion, modoLectura = false) {
   }
   // Parámetros
   if (Array.isArray(evaluacion.respuestas)) {
+    // Determinar si la evaluación es móvil
+    let esMovilEval = false;
+    // Buscar franquicia o sucursal por ID
+    const franquicia = franquicias.find(f => f.id === evaluacion.sucursalId);
+    const sucursal = sucursales.find(s => s.id === evaluacion.sucursalId);
+    if (franquicia && franquicia.modelo && ['móvil','movil'].includes(franquicia.modelo.toLowerCase())) esMovilEval = true;
+    if (sucursal && sucursal.modelo && ['móvil','movil'].includes(sucursal.modelo.toLowerCase())) esMovilEval = true;
+
     evaluacion.respuestas.forEach(rta => {
+      // FILTRAR SI ES MÓVIL Y ESTÁ EXCLUIDO
+      if (esMovilEval && parametrosExcluidosMovil.includes(rta.parametroId)) {
+        console.log('[DEBUG][rellenarFormularioEvaluacion] Excluyendo parámetro por móvil:', rta.parametroId);
+        return;
+      }
       const inputName = `param-${rta.categoriaId}-${rta.parametroId}`;
       const radio = document.querySelector(`input[name="${inputName}"][value="${rta.valor}"]`);
       if (radio) {
@@ -791,7 +801,7 @@ async function guardarEvaluacion() {
     // Validar que se hayan respondido todos los parámetros requeridos
     const parametrosNoRespondidos = [];
     categorias.forEach((categoria) => {
-      const parametrosCategoria = parametros.filter(p => p.categoriaId === categoria.id);
+      const parametrosCategoria = window.valores.filter(p => p.categoriaId === categoria.id);
       parametrosCategoria.forEach((parametro) => {
         const inputName = `param-${categoria.id}-${parametro.id}`;
         const radioSelected = document.querySelector(`input[name="${inputName}"]:checked`);
@@ -825,7 +835,7 @@ async function guardarEvaluacion() {
     let totalParametros = 0;
 
     categorias.forEach((categoria) => {
-      const parametrosCategoria = parametros.filter(p => p.categoriaId === categoria.id);
+      const parametrosCategoria = window.valores.filter(p => p.categoriaId === categoria.id);
       parametrosCategoria.forEach((parametro) => {
         const inputName = `param-${categoria.id}-${parametro.id}`;
         const radioSelected = document.querySelector(`input[name="${inputName}"]:checked`);
@@ -885,7 +895,9 @@ async function guardarEvaluacion() {
     }
 
     // Recargar evaluaciones
-    await cargarEvaluaciones();
+    await cargarEvaluaciones(); // Para refrescar el dashboard
+    actualizarResumen();
+    showNotification('Evaluación guardada correctamente', 'success');
 
     // Limpiar formulario
     if (elements.formNuevaEvaluacion) {
@@ -1066,7 +1078,14 @@ if (elements.selectSucursal) {
 
 // Al abrir el modal, establecer visibilidad correcta
 // Ya existe modalNuevaEvaluacionEl arriba, solo úsala aquí sin el 'const'
-modalNuevaEvaluacionEl.addEventListener('show.bs.modal', mostrarOcultarModeloFranquicia);
+modalNuevaEvaluacionEl.addEventListener('show.bs.modal', async () => {
+  const tipo = esAdmin() && elements.tipoCafeSelect ? elements.tipoCafeSelect.value : (esFranquiciasUser() ? 'franquicia' : 'sucursal');
+  await cargarSucursalesModal(tipo); // Espera a que se cargue el select
+  // LOG de depuración para validar el valor del select
+  console.log('[DEBUG][modal] Valor actual del selectSucursal:', elements.selectSucursal ? elements.selectSucursal.value : '(no existe)', 'Tipo:', elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '(no existe)');
+  cargarParametrosEvaluacion();
+  autocompletarParametrosPorDefecto();
+});
 
 // --- INICIO LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
 // Lista de franquicias (nombre exacto)
@@ -1159,7 +1178,7 @@ async function cargarHistorialEvaluaciones(yyyymm) {
     const ev = docSnap.data();
     rows.push({
       id: docSnap.id,
-      fecha: ev.fecha.toDate ? ev.fecha.toDate() : new Date(ev.fecha),
+      fecha: (ev.fecha && ev.fecha.toDate) ? ev.fecha.toDate() : (ev.fecha ? new Date(ev.fecha) : null),
       sucursal: ev.sucursalNombre,
       evaluador: ev.usuarioNombre || '',
       puntaje: ev.puntajeTotal || 0,
@@ -1181,7 +1200,7 @@ function renderTablaHistorial(rows) {
   rows.forEach(ev => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${ev.fecha.toLocaleDateString()}</td>
+      <td>${ev.fecha ? formatDate(ev.fecha, 'DD/MM/YYYY HH:mm') : '-'}</td>
       <td>${ev.sucursal}</td>
       <td>${ev.evaluador}</td>
       <td>${ev.puntaje}%</td>
@@ -1347,10 +1366,11 @@ const valoresPorDefectoParametros = {
 
 // Autocompletar valores por defecto al cargar el formulario de evaluación
 function autocompletarParametrosPorDefecto() {
-  parametros.forEach(param => {
+  const esMovil = esEvaluacionMovil();
+  window.valores.forEach(param => {
+    if (esMovil && parametrosExcluidosMovil.includes(param.id)) return;
     const valor = valoresPorDefectoParametros[param.id];
     if (valor !== undefined) {
-      // Radios (opciones)
       const radios = document.getElementsByName(param.id);
       if (radios && radios.length > 0) {
         radios.forEach(radio => {
@@ -1359,12 +1379,10 @@ function autocompletarParametrosPorDefecto() {
           }
         });
       }
-      // Inputs tipo número
       const input = document.getElementById(param.id);
       if (input && input.type === 'number') {
         input.value = valor;
       }
-      // Inputs tipo rango/select
       if (input && (input.tagName === 'SELECT' || input.type === 'range')) {
         input.value = valor;
       }
@@ -1372,9 +1390,114 @@ function autocompletarParametrosPorDefecto() {
   });
 }
 
-// Llama autocompletar después de cargar parámetros en el formulario
-const originalCargarParametrosEvaluacion = cargarParametrosEvaluacion;
-cargarParametrosEvaluacion = function() {
-  originalCargarParametrosEvaluacion();
-  autocompletarParametrosPorDefecto();
-};
+// --- PARÁMETROS QUE NO APLICAN PARA MÓVIL ---
+const parametrosExcluidosMovil = [
+  'atencion_mesa',
+  'tableta',
+  'puertas_vidrios',
+  'musica_volumen',
+  'mesas_sillas_limpieza',
+  'banos_estado',
+  'basura_estado',
+  'barra_limpieza',
+  'mesas_sillas_estado'
+];
+
+// Detectar si la sucursal o franquicia seleccionada es modelo Móvil
+function esEvaluacionMovil() {
+  // Si el modal está abierto, usamos el select de sucursal/franquicia
+  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
+  let id = elements.selectSucursal ? elements.selectSucursal.value : '';
+
+  // Verificar franquicia
+  if (tipo === 'franquicia' && id) {
+    const franquicia = franquicias.find(f => f.id === id);
+    if (franquicia && franquicia.modelo && ['móvil','movil'].includes(franquicia.modelo.toLowerCase())) {
+      return true;
+    }
+  }
+  // Verificar sucursal
+  if (tipo === 'sucursal' && id) {
+    const sucursal = sucursales.find(s => s.id === id);
+    if (sucursal && sucursal.modelo && ['móvil','movil'].includes(sucursal.modelo.toLowerCase())) {
+      return true;
+    }
+  }
+
+  // Soportar edición/lectura de evaluación existente (franquicia)
+  if (state.currentEvaluation && state.currentEvaluation.tipo === 'franquicia') {
+    const franquicia = franquicias.find(f => f.id === state.currentEvaluation.sucursalId);
+    if (franquicia && franquicia.modelo && ['móvil','movil'].includes(franquicia.modelo.toLowerCase())) {
+      return true;
+    }
+  }
+  // Soportar edición/lectura de evaluación existente (sucursal)
+  if (state.currentEvaluation && state.currentEvaluation.tipo === 'sucursal') {
+    const sucursal = sucursales.find(s => s.id === state.currentEvaluation.sucursalId);
+    if (sucursal && sucursal.modelo && ['móvil','movil'].includes(sucursal.modelo.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// --- FORZAR RERENDER DE PARÁMETROS AL CAMBIAR SUCURSAL O MODELO ---
+if (elements.selectSucursal) {
+  elements.selectSucursal.addEventListener('change', () => {
+    cargarParametrosEvaluacion();
+    autocompletarParametrosPorDefecto();
+  });
+}
+if (elements.tipoCafeSelect) {
+  elements.tipoCafeSelect.addEventListener('change', () => {
+    cargarParametrosEvaluacion();
+    autocompletarParametrosPorDefecto();
+  });
+}
+
+// Al abrir el modal de nueva evaluación, después de cargar sucursales, renderizar parámetros correctamente
+if (modalNuevaEvaluacionEl) {
+  modalNuevaEvaluacionEl.addEventListener('show.bs.modal', async () => {
+    const tipo = esAdmin() && elements.tipoCafeSelect ? elements.tipoCafeSelect.value : (esFranquiciasUser() ? 'franquicia' : 'sucursal');
+    await cargarSucursalesModal(tipo); // Espera a que se cargue el select
+    // IMPORTANTE: renderizar parámetros acorde a la selección inicial
+    cargarParametrosEvaluacion();
+    autocompletarParametrosPorDefecto();
+  });
+}
+
+// Renderizar la lista de parámetros en la sección de parámetros
+function renderValoresList() {
+  const contenedor = document.getElementById('lista-parametros');
+  if (!contenedor) return;
+  contenedor.innerHTML = '';
+  if (!window.valores) {
+    contenedor.innerHTML = '<div class="alert alert-warning">No se encontraron parámetros.</div>';
+    return;
+  }
+  const table = document.createElement('table');
+  table.className = 'table table-bordered table-hover';
+  table.innerHTML = `<thead><tr><th>Nombre</th><th>Peso</th><th>Descripción</th></tr></thead><tbody></tbody>`;
+  window.valores.forEach(param => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${param.nombre}</td><td>${param.peso}</td><td>${param.descripcion}</td>`;
+    table.querySelector('tbody').appendChild(tr);
+  });
+  contenedor.appendChild(table);
+}
+
+// Mostrar sección de parámetros al hacer click en la barra de navegación
+const navParametros = document.querySelector('[data-section="parametros"]');
+if (navParametros) {
+  navParametros.addEventListener('click', (e) => {
+    e.preventDefault();
+    showSection('parametros');
+    renderValoresList();
+  });
+}
+
+document.addEventListener('sectionShown', (e) => {
+  if (e.detail.sectionId === 'parametros') {
+    renderValoresList();
+  }
+});
