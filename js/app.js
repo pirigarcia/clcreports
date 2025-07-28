@@ -1500,4 +1500,23 @@ document.addEventListener('sectionShown', (e) => {
   if (e.detail.sectionId === 'parametros') {
     renderValoresList();
   }
+  if (e.detail.sectionId === 'evaluaciones') {
+    const selectorMes = document.getElementById('selectorMes');
+    if (selectorMes) {
+      // Inicializar con el mes actual si está vacío o no tiene valor válido
+      if (!selectorMes.value) {
+        const now = new Date();
+        selectorMes.value = now.toISOString().slice(0, 7);
+      }
+      // Cargar historial del mes seleccionado
+      cargarHistorialEvaluaciones(selectorMes.value);
+      // Evitar listeners duplicados
+      if (!selectorMes.dataset.listenerAttached) {
+        selectorMes.addEventListener('change', () => {
+          cargarHistorialEvaluaciones(selectorMes.value);
+        });
+        selectorMes.dataset.listenerAttached = "true";
+      }
+    }
+  }
 });
