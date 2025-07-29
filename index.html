@@ -95,31 +95,28 @@
             </div>
 
             <!-- Filtros -->
-            <!-- <div class="card mb-4">
+          <!-- Filtros -->
+            <div class="card mb-4">
                 <div class="card-body">
-                    <form id="filtro-form" class="row g-3">
+                    <form id="filtro-form" class="row g-3 align-items-end">
                         <div class="col-md-4">
-                            <label for="filtro-sucursal" class="form-label">Sucursal</label>
+                            <label for="filtro-mes" class="form-label">Filtrar por Mes</label>
+                            <input type="month" class="form-control" id="filtro-mes">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="filtro-sucursal" class="form-label">Sucursal / Franquicia</label>
                             <select class="form-select" id="filtro-sucursal">
-                                <option value="" selected>Todas las sucursales</option>
+                                <option value="" selected>Todas</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label for="filtro-fecha-inicio" class="form-label">Fecha Inicio</label>
-                            <input type="date" class="form-control" id="filtro-fecha-inicio">
-                        </div>
-                        <div class="col-md-3">
-                            <label for="filtro-fecha-fin" class="form-label">Fecha Fin</label>
-                            <input type="date" class="form-control" id="filtro-fecha-fin">
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary w-100">
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-secondary w-100">
                                 <i class="fas fa-filter me-1"></i> Filtrar
                             </button>
                         </div>
                     </form>
                 </div>
-            </div> -->
+            </div>
 
             <!-- Tarjetas de resumen -->
             <div class="row mb-4">

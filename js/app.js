@@ -69,9 +69,8 @@ const elements = {
   
   // Filtros
   filtroForm: document.getElementById('filtro-form'),
+  filtroMes: document.getElementById('filtro-mes'),
   filtroSucursal: document.getElementById('filtro-sucursal'),
-  filtroFechaInicio: document.getElementById('filtro-fecha-inicio'),
-  filtroFechaFin: document.getElementById('filtro-fecha-fin'),
   
   // Modal de nueva evaluación
   modalNuevaEvaluacion: null,
@@ -96,9 +95,6 @@ async function initApp() {
     if (elements.inputFecha) {
       elements.inputFecha.value = now.toISOString().slice(0, 16);
     }
-    
-    // Cargar sucursales
-    await cargarSucursales();
     
     // Configurar manejadores de eventos
     setupEventListeners();
@@ -145,8 +141,10 @@ async function initApp() {
         }
         // --- CORRECCIÓN: Establecer sucursales/franquicias visibles según el rol ---
         state.sucursales = obtenerSucursalesVisibles();
+        // Cargar sucursales
+        await cargarSucursales();
         // Cargar evaluaciones
-        await cargarEvaluaciones();
+        await cargarEvaluaciones({ mes: elements.filtroMes.value });
       } else {
         // Usuario no autenticado, redirigir a login
         window.location.href = 'login.html';
@@ -162,7 +160,6 @@ async function initApp() {
 // Cargar sucursales desde el módulo
 async function cargarSucursales() {
   try {
-    state.sucursales = obtenerSucursalesVisibles();
     llenarSelectSucursales(elements.filtroSucursal, 'Todas las sucursales');
   } catch (error) {
     console.error('Error al cargar sucursales:', error);
@@ -218,17 +215,15 @@ async function cargarEvaluaciones(filtros = {}) {
     if (filtros.sucursalId) {
       condiciones.push(where('sucursalId', '==', filtros.sucursalId));
     }
-    if (filtros.fechaInicio || filtros.fechaFin) {
-      const fechas = {};
-      if (filtros.fechaInicio) fechas['>='] = new Date(filtros.fechaInicio);
-      if (filtros.fechaFin) {
-        const fechaFin = new Date(filtros.fechaFin);
-        fechaFin.setHours(23, 59, 59, 999);
-        fechas['<='] = fechaFin;
+       // ESTE ES EL REEMPLAZO
+       if (filtros.mes) { // p. ej. "2024-07"
+        const [year, month] = filtros.mes.split('-').map(Number);
+        const fechaInicio = new Date(year, month - 1, 1);
+        const fechaFin = new Date(year, month, 1);
+  
+        condiciones.push(where('fecha', '>=', fechaInicio));
+        condiciones.push(where('fecha', '<', fechaFin));
       }
-      if (fechas['>=']) condiciones.push(where('fecha', '>=', fechas['>=']));
-      if (fechas['<=']) condiciones.push(where('fecha', '<=', fechas['<=']));
-    }
     // Construir la query
     if (condiciones.length > 0) {
       q = query(q, ...condiciones);
@@ -271,6 +266,7 @@ async function cargarEvaluaciones(filtros = {}) {
   }
 }
 
+// Actualizar el resumen del dashboard
 // Actualizar el resumen del dashboard
 function actualizarResumen() {
   // Totales generales y pendientes correctos
@@ -321,6 +317,36 @@ function actualizarResumen() {
         </div>
       `;
     }
+
+    // --- INICIO: LÓGICA PARA EL TOOLTIP DE PENDIENTES ---
+    const totalEvaluacionesCard = elements.totalEvaluaciones.closest('.card');
+    if (totalEvaluacionesCard) {
+      let pendientesTooltipContent = '';
+      const pendientes = esAdmin() ? [...sucursalesPendientes, ...franquiciasPendientes] : (esFranquiciasUser() ? franquiciasPendientes : sucursalesPendientes);
+
+      if (pendientes.length > 0) {
+        pendientesTooltipContent = '<strong>Pendientes de evaluar:</strong><ul class=\"list-unstyled mb-0 ps-2\">';
+        pendientes.forEach(item => {
+          pendientesTooltipContent += `<li>- ${item.nombre}</li>`;
+        });
+        pendientesTooltipContent += '</ul>';
+      } else {
+        pendientesTooltipContent = '¡Todo evaluado!';
+      }
+
+      totalEvaluacionesCard.setAttribute('data-bs-toggle', 'tooltip');
+      totalEvaluacionesCard.setAttribute('data-bs-placement', 'top');
+      totalEvaluacionesCard.setAttribute('data-bs-html', 'true');
+      totalEvaluacionesCard.setAttribute('data-bs-title', pendientesTooltipContent);
+
+      // Reinicializar el tooltip para que tome los nuevos datos
+      const tooltip = window.bootstrap.Tooltip.getInstance(totalEvaluacionesCard);
+      if (tooltip) {
+        tooltip.dispose();
+      }
+      new window.bootstrap.Tooltip(totalEvaluacionesCard);
+    }
+    // --- FIN: LÓGICA PARA EL TOOLTIP DE PENDIENTES ---
   }
   
   // Promedio general
@@ -373,79 +399,51 @@ function actualizarResumen() {
       
       // Calcular promedios
       Object.keys(sucursalesPuntaje).forEach(sucursalId => {
-        sucursalesPuntaje[sucursalId].promedio = 
-          Math.round(sucursalesPuntaje[sucursalId].total / sucursalesPuntaje[sucursalId].count);
+        const data = sucursalesPuntaje[sucursalId];
+        data.promedio = data.count > 0 ? Math.round(data.total / data.count) : 0;
       });
       
-      // Encontrar la sucursal con mayor puntaje
-      let mejorSucursal = null;
-      let mejorPuntaje = 0;
+      // Encontrar la destacada
+      let destacadaId = null;
+      let maxPromedio = -1;
       
-      Object.entries(sucursalesPuntaje).forEach(([sucursalId, datos]) => {
-        if (datos.promedio > mejorPuntaje) {
-          mejorPuntaje = datos.promedio;
-          mejorSucursal = state.sucursales.find(s => s.id === sucursalId);
+      Object.keys(sucursalesPuntaje).forEach(sucursalId => {
+        if (sucursalesPuntaje[sucursalId].promedio > maxPromedio) {
+          maxPromedio = sucursalesPuntaje[sucursalId].promedio;
+          destacadaId = sucursalId;
         }
       });
       
-      if (mejorSucursal) {
-        elements.sucursalDestacada.textContent = mejorSucursal.nombre;
-        elements.puntajeSucursal.textContent = `${mejorPuntaje}% de cumplimiento`;
+      if (destacadaId) {
+        const sucursalInfo = obtenerSucursalPorId(destacadaId) || obtenerFranquiciaPorId(destacadaId);
+        elements.sucursalDestacada.textContent = sucursalInfo ? sucursalInfo.nombre : 'N/A';
+        elements.puntajeSucursal.textContent = `${maxPromedio}%`;
+      } else {
+        elements.sucursalDestacada.textContent = 'N/A';
+        elements.puntajeSucursal.textContent = '0%';
       }
     } else {
-      elements.sucursalDestacada.textContent = '-';
-      elements.puntajeSucursal.textContent = 'No hay datos';
+      elements.sucursalDestacada.textContent = 'N/A';
+      elements.puntajeSucursal.textContent = '0%';
     }
   }
   
-  // --- BLOQUE DE ATENCIÓN (SUCURSALES CON BAJO PROMEDIO) ---
-  if (elements.atencionSucursales && elements.atencionTodasOk) {
-    const atencionCard = document.querySelector('#atencion-block .card');
-    // Calcular promedios por sucursal
-    const sucursalesMap = {};
-    state.evaluaciones.forEach(ev => {
-      if (!ev.sucursalId) return;
-      if (!sucursalesMap[ev.sucursalId]) {
-        sucursalesMap[ev.sucursalId] = { nombre: ev.sucursalNombre, total: 0, count: 0 };
-      }
-      sucursalesMap[ev.sucursalId].total += ev.puntajeTotal || 0;
-      sucursalesMap[ev.sucursalId].count++;
-    });
-    // Calcular promedio y preparar arreglo
-    const promedios = Object.values(sucursalesMap).map(s => ({
-      nombre: s.nombre,
-      promedio: s.count ? Math.round(s.total / s.count) : 0
-    }));
-    // Filtrar solo sucursales con promedio menor a 100%
-    const promediosFiltrados = promedios.filter(s => s.promedio < 100);
-    // Revisar si todas cumplen al 100%
-    const todasOk = promedios.length > 0 && promediosFiltrados.length === 0;
-    elements.atencionSucursales.innerHTML = '';
-    elements.atencionTodasOk.style.display = 'none';
-    // Limpiar animación previa y restaurar fondo amarillo
-    if (atencionCard) {
-      atencionCard.classList.remove('atencion-animada');
-      atencionCard.classList.add('bg-warning');
-    }
-    if (todasOk) {
-      elements.atencionTodasOk.style.display = '';
-      if (atencionCard) {
-        atencionCard.classList.add('atencion-animada');
-        atencionCard.classList.remove('bg-warning');
-      }
-      if (esAdmin()) {
-        elements.atencionTodasOk.textContent = '¡Todas las sucursales y franquicias cumplen al 100%!';
-      } else if (esFranquiciasUser()) {
-        elements.atencionTodasOk.textContent = '¡Todas las franquicias cumplen al 100%!';
-      } else {
-        elements.atencionTodasOk.textContent = '¡Todas las sucursales cumplen al 100%!';
-      }
-    } else {
-      promediosFiltrados.slice(0, 3).forEach(s => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span class="fw-bold">${s.nombre}</span>: <span class="text-danger">${s.promedio}%</span>`;
-        elements.atencionSucursales.appendChild(li);
+  // Alertas de atención
+  if (elements.atencionSucursales) {
+    const sucursalesConAtencion = state.evaluaciones
+      .filter(ev => ev.atencionRequerida)
+      .map(ev => {
+        const sucursalInfo = obtenerSucursalPorId(ev.sucursalId) || obtenerFranquiciaPorId(ev.sucursalId);
+        return sucursalInfo ? sucursalInfo.nombre : 'Desconocida';
       });
+      
+    if (sucursalesConAtencion.length > 0) {
+      elements.atencionSucursales.innerHTML = [...new Set(sucursalesConAtencion)].join(', ');
+      document.getElementById('atencion-block').style.display = '';
+      document.getElementById('atencion-todas-ok').style.display = 'none';
+    } else {
+      document.getElementById('atencion-block').style.display = 'none';
+      document.getElementById('atencion-todas-ok').style.display = '';
     }
   }
 }
@@ -952,15 +950,31 @@ function setupEventListeners() {
   
   // Filtros
   if (elements.filtroForm) {
+    if (elements.filtroMes && !elements.filtroMes.value) {
+        const now = new Date();
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const year = now.getFullYear();
+        elements.filtroMes.value = `${year}-${month}`;
+    }
+
     elements.filtroForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const filtros = {
+        mes: elements.filtroMes?.value || null,
         sucursalId: elements.filtroSucursal?.value || null,
-        fechaInicio: elements.filtroFechaInicio?.value || null,
-        fechaFin: elements.filtroFechaFin?.value || null
       };
       cargarEvaluaciones(filtros);
     });
+
+    if (elements.filtroMes) {
+        elements.filtroMes.addEventListener('change', () => {
+            const filtros = {
+                mes: elements.filtroMes.value,
+                sucursalId: elements.filtroSucursal?.value || null,
+            };
+            cargarEvaluaciones(filtros);
+        });
+    }
   }
   
   // Toggle de filtro de mis evaluaciones
