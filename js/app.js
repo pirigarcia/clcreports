@@ -82,7 +82,9 @@ const elements = {
   seccionParametros: document.getElementById('seccion-parametros'),
   inputObservaciones: document.getElementById('observaciones'),
   tipoCafeGroup: document.getElementById('tipo-cafe-group'),
-  tipoCafeSelect: document.getElementById('tipo-cafe')
+  tipoCafeSelect: document.getElementById('tipo-cafe'),
+  btnExportPDF: document.getElementById('export-pdf'),
+  btnExportExcel: document.getElementById('export-excel')
 };
 
 // Inicialización de la aplicación
@@ -322,7 +324,9 @@ function actualizarResumen() {
     const totalEvaluacionesCard = elements.totalEvaluaciones.closest('.card');
     if (totalEvaluacionesCard) {
       let pendientesTooltipContent = '';
-      const pendientes = esAdmin() ? [...sucursalesPendientes, ...franquiciasPendientes] : (esFranquiciasUser() ? franquiciasPendientes : sucursalesPendientes);
+      const pendientes = esAdmin()
+        ? [...sucursalesPendientes, ...franquiciasPendientes]
+        : (esFranquiciasUser() ? franquiciasPendientes : sucursalesPendientes);
 
       if (pendientes.length > 0) {
         pendientesTooltipContent = '<strong>Pendientes de evaluar:</strong><ul class=\"list-unstyled mb-0 ps-2\">';
@@ -430,15 +434,47 @@ function actualizarResumen() {
   
   // Alertas de atención
   if (elements.atencionSucursales) {
-    const sucursalesConAtencion = state.evaluaciones
-      .filter(ev => ev.atencionRequerida)
-      .map(ev => {
-        const sucursalInfo = obtenerSucursalPorId(ev.sucursalId) || obtenerFranquiciaPorId(ev.sucursalId);
-        return sucursalInfo ? sucursalInfo.nombre : 'Desconocida';
-      });
+    // Obtener todas las evaluaciones completadas
+    const evaluacionesCompletadas = state.evaluaciones.filter(ev => ev.completada);
+    
+    // Crear un objeto para almacenar el promedio por sucursal/franquicia
+    const puntajesPorSucursal = {};
+    
+    // Calcular el promedio para cada sucursal/franquicia
+    evaluacionesCompletadas.forEach(ev => {
+      if (!puntajesPorSucursal[ev.sucursalId]) {
+        puntajesPorSucursal[ev.sucursalId] = {
+          id: ev.sucursalId,
+          nombre: ev.sucursalNombre,
+          tipo: ev.tipo,
+          total: 0,
+          count: 0
+        };
+      }
+      puntajesPorSucursal[ev.sucursalId].total += ev.puntajeTotal || 0;
+      puntajesPorSucursal[ev.sucursalId].count++;
+    });
+    
+    // Calcular el promedio para cada sucursal
+    Object.values(puntajesPorSucursal).forEach(sucursal => {
+      sucursal.promedio = sucursal.count > 0 ? Math.round(sucursal.total / sucursal.count) : 0;
+    });
+    
+    // Ordenar por promedio (de menor a mayor)
+    const sucursalesOrdenadas = Object.values(puntajesPorSucursal)
+      .filter(s => s.count > 0) // Solo considerar las que tienen evaluaciones
+      .sort((a, b) => a.promedio - b.promedio);
+    
+    // Tomar las 3 con peor calificación
+    const sucursalesConBajaCalificacion = sucursalesOrdenadas.slice(0, 3);
+    
+    if (sucursalesConBajaCalificacion.length > 0) {
+      // Formatear el texto para mostrar en el bloque de atención
+      const sucursalesTexto = sucursalesConBajaCalificacion.map(s => 
+        `${s.nombre} (${s.promedio}%)`
+      ).join(', ');
       
-    if (sucursalesConAtencion.length > 0) {
-      elements.atencionSucursales.innerHTML = [...new Set(sucursalesConAtencion)].join(', ');
+      elements.atencionSucursales.innerHTML = sucursalesTexto;
       document.getElementById('atencion-block').style.display = '';
       document.getElementById('atencion-todas-ok').style.display = 'none';
     } else {
@@ -1048,6 +1084,16 @@ function setupEventListeners() {
       elements.modalNuevaEvaluacion.hide();
     });
   }
+  
+  // Exportar a PDF
+  if (elements.btnExportPDF) {
+    elements.btnExportPDF.addEventListener('click', exportarPDF);
+  }
+  
+  // Exportar a Excel
+  if (elements.btnExportExcel) {
+    elements.btnExportExcel.addEventListener('click', exportarExcel);
+  }
 }
 
 // Inicializar el modal de Bootstrap para nueva evaluación después de que el DOM esté completamente cargado
@@ -1100,246 +1146,6 @@ modalNuevaEvaluacionEl.addEventListener('show.bs.modal', async () => {
   cargarParametrosEvaluacion();
   autocompletarParametrosPorDefecto();
 });
-
-// --- INICIO LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
-// Lista de franquicias (nombre exacto)
-const NOMBRES_FRANQUICIAS = [
-  'Vía 2',
-  'City center',
-  'Cárdenas',
-  'Paraíso',
-  'Dos Bocas',
-  'Cumuapa',
-  'Cunduacán',
-  'Jalpa de Méndez',
-  'Cd del Cármen'
-];
-
-function esFranquiciasUser() {
-  return state.currentUser && state.currentUser.email === 'franquicias@cafelacabana.com';
-}
-
-function esGopUser() {
-  return state.currentUser && state.currentUser.email === 'gop@cafelacabana.com';
-}
-
-// Filtra las sucursales según el usuario logueado
-function obtenerSucursalesVisibles() {
-  if (esAdmin()) return [...sucursales, ...franquicias];
-  if (esFranquiciasUser()) {
-    return [...franquicias];
-  }
-  if (esGopUser()) {
-    return [...sucursales];
-  }
-  return [];
-}
-
-// --- FIN LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
-
-// Inicializar la aplicación cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', () => {
-  // Ocultar todas las secciones excepto dashboard al cargar
-  document.querySelectorAll('.section-content').forEach(sec => {
-    if (sec.id === 'dashboard') {
-      sec.style.display = '';
-    } else {
-      sec.style.display = 'none';
-    }
-  });
-
-  // Manejar clics en la barra de navegación
-  elements.navLinks.forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const section = link.getAttribute('data-section');
-      document.querySelectorAll('.section-content').forEach(sec => {
-        sec.style.display = (sec.id === section) ? '' : 'none';
-      });
-      // Lanzar evento personalizado para lógica extra si es necesario
-      document.dispatchEvent(new CustomEvent('sectionShown', { detail: { sectionId: section } }));
-    });
-  });
-
-  initApp().catch(error => {
-    console.error('Error al inicializar la aplicación:', error);
-    showNotification('Error al iniciar la aplicación', 'error');
-  });
-});
-
-// --- GRÁFICA GENERAL DE SUCURSALES ---
-async function cargarHistorialEvaluaciones(yyyymm) {
-  console.log('Cargando historial para:', yyyymm);
-  
-  // yyyy-mm
-  const [year, month] = yyyymm.split('-');
-  const inicio = new Date(Number(year), Number(month) - 1, 1);
-  const fin = new Date(Number(year), Number(month), 1, 0, 0, 0); // primer día del mes siguiente
-
-  // LOG: Verifica el rango de fechas
-  console.log('Rango de consulta:', inicio, fin);
-
-  // Consulta Firestore por evaluaciones de ese rango de fechas
-  const q = query(
-    collection(db, 'evaluaciones'),
-    where('fecha', '>=', inicio),
-    where('fecha', '<', fin),
-    orderBy('fecha', 'desc')
-  );
-  const snapshot = await getDocs(q);
-  const rows = [];
-  snapshot.forEach(docSnap => {
-    const ev = docSnap.data();
-    rows.push({
-      id: docSnap.id,
-      fecha: (ev.fecha && ev.fecha.toDate) ? ev.fecha.toDate() : (ev.fecha ? new Date(ev.fecha) : null),
-      sucursal: ev.sucursalNombre,
-      evaluador: ev.usuarioNombre || '',
-      puntaje: ev.puntajeTotal || 0,
-      estado: ev.completada ? 'Completada' : 'Pendiente',
-    });
-  });
-  // LOG: Verifica los resultados obtenidos
-  console.log('Rows:', rows);
-  renderTablaHistorial(rows);
-}
-
-function renderTablaHistorial(rows) {
-  const tbody = document.getElementById('tablaHistorialEvaluaciones');
-  if (!tbody) {
-    console.warn('No se encontró el tbody de historial de evaluaciones');
-    return;
-  }
-  tbody.innerHTML = '';
-  rows.forEach(ev => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${ev.fecha ? formatDate(ev.fecha, 'DD/MM/YYYY HH:mm') : '-'}</td>
-      <td>${ev.sucursal}</td>
-      <td>${ev.evaluador}</td>
-      <td>${ev.puntaje}%</td>
-      <td>${ev.estado}</td>
-      <td>
-        <button class="btn btn-outline-primary btn-sm" title="Ver evaluación" onclick="verEvaluacion('${ev.id}')">
-          <i class="fas fa-eye"></i>
-        </button>
-        ${esAdmin() ? `<button class="btn btn-outline-success btn-sm" title="Editar evaluación" onclick="editarEvaluacion('${ev.id}')">
-          <i class="fas fa-pencil-fill"></i>
-        </button>` : ''}
-        ${esAdmin() ? `<button class="btn btn-outline-danger btn-sm" title="Eliminar evaluación" onclick="eliminarEvaluacion('${ev.id}')">
-          <i class="fas fa-trash"></i>
-        </button>` : ''}
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-// --- HISTORIAL DE EVALUACIONES POR MES ---
-let graficaSucursales = null;
-
-function mostrarGraficaSucursales() {
-  // Agrupa evaluaciones por sucursal y calcula promedio
-  const sucursalesMap = {};
-  state.evaluaciones.forEach(ev => {
-    if (!ev.sucursalNombre) return;
-    if (!sucursalesMap[ev.sucursalNombre]) {
-      sucursalesMap[ev.sucursalNombre] = { total: 0, count: 0 };
-    }
-    sucursalesMap[ev.sucursalNombre].total += ev.puntajeTotal || 0;
-    sucursalesMap[ev.sucursalNombre].count++;
-  });
-  const labels = Object.keys(sucursalesMap);
-  const data = labels.map(suc => {
-    const s = sucursalesMap[suc];
-    return s.count ? Math.round(s.total / s.count) : 0;
-  });
-  const ctx = document.getElementById('graficaSucursales')?.getContext('2d');
-  if (!ctx) return;
-  if (graficaSucursales) {
-    graficaSucursales.destroy();
-  }
-  // Asignar color según el puntaje de cada sucursal
-  const backgroundColors = data.map(score => {
-    if (score >= 96) return '#198754'; // verde (Bootstrap bg-success)
-    if (score >= 91) return '#ffc107'; // amarillo (Bootstrap bg-warning)
-    return '#dc3545'; // rojo (Bootstrap bg-danger)
-  });
-  graficaSucursales = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Puntaje promedio (%)',
-        data: data,
-        backgroundColor: backgroundColors
-      }]
-    },
-    options: {
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 100
-        }
-      }
-    }
-  });
-}
-
-document.addEventListener('sectionShown', (e) => {
-  if (e.detail.sectionId === 'reportes') {
-    mostrarGraficaSucursales();
-  }
-});
-
-// Hacer funciones globales para el HTML inline onclick
-window.verEvaluacion = verEvaluacion;
-window.editarEvaluacion = editarEvaluacion;
-window.eliminarEvaluacion = eliminarEvaluacion;
-
-// Mostrar u ocultar el selector de modelo de franquicia en el modal según el tipo seleccionado
-function mostrarOcultarModeloFranquicia() {
-  const grupoModelo = document.getElementById('grupo-modelo-franquicia');
-  const selectModelo = document.getElementById('modelo-franquicia');
-  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
-  if (grupoModelo && selectModelo) {
-    if (tipo === 'franquicia') {
-      grupoModelo.style.display = '';
-      // Si la franquicia ya tiene modelo, seleccionarlo
-      const franquiciaSeleccionada = franquicias.find(f => f.id === (elements.selectSucursal ? elements.selectSucursal.value : ''));
-      if (franquiciaSeleccionada && franquiciaSeleccionada.modelo) {
-        selectModelo.value = franquiciaSeleccionada.modelo;
-      } else {
-        selectModelo.value = 'Cafetería';
-      }
-    } else {
-      grupoModelo.style.display = 'none';
-    }
-  }
-}
-
-// Llenar el select de sucursal/franquicia en el modal
-function cargarSucursalesModal(tipo) {
-  const select = elements.selectSucursal;
-  if (!select) return;
-  select.innerHTML = '<option value="" selected disabled>Seleccione una opción</option>';
-  let lista = [];
-  if (esAdmin()) {
-    // Mostrar ambas listas combinadas para admin
-    lista = [...sucursales, ...franquicias];
-  } else if (esFranquiciasUser()) {
-    lista = franquicias;
-  } else if (esGopUser()) {
-    lista = sucursales;
-  }
-  lista.forEach(item => {
-    if (!item.activa) return;
-    const option = document.createElement('option');
-    option.value = item.id;
-    option.textContent = item.nombre;
-    select.appendChild(option);
-  });
-}
 
 // --- VALORES POR DEFECTO PARA PARÁMETROS DE EVALUACIÓN ---
 const valoresPorDefectoParametros = {
@@ -1455,6 +1261,82 @@ function esEvaluacionMovil() {
   return false;
 }
 
+// Detectar si la sucursal o franquicia seleccionada es modelo Express
+function esEvaluacionExpress() {
+  // Si el modal está abierto, usamos el select de sucursal/franquicia
+  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
+  let id = elements.selectSucursal ? elements.selectSucursal.value : '';
+
+  // Verificar franquicia
+  if (tipo === 'franquicia' && id) {
+    const franquicia = franquicias.find(f => f.id === id);
+    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'express') {
+      return true;
+    }
+  }
+  // Verificar sucursal
+  if (tipo === 'sucursal' && id) {
+    const sucursal = sucursales.find(s => s.id === id);
+    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'express') {
+      return true;
+    }
+  }
+
+  // Soportar edición/lectura de evaluación existente (franquicia)
+  if (state.currentEvaluation && state.currentEvaluation.tipo === 'franquicia') {
+    const franquicia = franquicias.find(f => f.id === state.currentEvaluation.sucursalId);
+    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'express') {
+      return true;
+    }
+  }
+  // Soportar edición/lectura de evaluación existente (sucursal)
+  if (state.currentEvaluation && state.currentEvaluation.tipo === 'sucursal') {
+    const sucursal = sucursales.find(s => s.id === state.currentEvaluation.sucursalId);
+    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'express') {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Detectar si la sucursal o franquicia seleccionada es modelo Cafetería
+function esEvaluacionCafeteria() {
+  // Si el modal está abierto, usamos el select de sucursal/franquicia
+  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
+  let id = elements.selectSucursal ? elements.selectSucursal.value : '';
+
+  // Verificar franquicia
+  if (tipo === 'franquicia' && id) {
+    const franquicia = franquicias.find(f => f.id === id);
+    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'cafetería') {
+      return true;
+    }
+  }
+  // Verificar sucursal
+  if (tipo === 'sucursal' && id) {
+    const sucursal = sucursales.find(s => s.id === id);
+    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'cafetería') {
+      return true;
+    }
+  }
+
+  // Soportar edición/lectura de evaluación existente (franquicia)
+  if (state.currentEvaluation && state.currentEvaluation.tipo === 'franquicia') {
+    const franquicia = franquicias.find(f => f.id === state.currentEvaluation.sucursalId);
+    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'cafetería') {
+      return true;
+    }
+  }
+  // Soportar edición/lectura de evaluación existente (sucursal)
+  if (state.currentEvaluation && state.currentEvaluation.tipo === 'sucursal') {
+    const sucursal = sucursales.find(s => s.id === state.currentEvaluation.sucursalId);
+    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'cafetería') {
+      return true;
+    }
+  }
+  return false;
+}
+
 // --- FORZAR RERENDER DE PARÁMETROS AL CAMBIAR SUCURSAL O MODELO ---
 if (elements.selectSucursal) {
   elements.selectSucursal.addEventListener('change', () => {
@@ -1534,3 +1416,376 @@ document.addEventListener('sectionShown', (e) => {
     }
   }
 });
+
+// Hacer funciones globales para el HTML inline onclick
+window.verEvaluacion = verEvaluacion;
+window.editarEvaluacion = editarEvaluacion;
+window.eliminarEvaluacion = eliminarEvaluacion;
+
+// Mostrar u ocultar el selector de modelo de franquicia en el modal según el tipo seleccionado
+function mostrarOcultarModeloFranquicia() {
+  const grupoModelo = document.getElementById('grupo-modelo-franquicia');
+  const selectModelo = document.getElementById('modelo-franquicia');
+  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
+  if (grupoModelo && selectModelo) {
+    if (tipo === 'franquicia') {
+      grupoModelo.style.display = '';
+      // Si la franquicia ya tiene modelo, seleccionarlo
+      const franquiciaSeleccionada = franquicias.find(f => f.id === (elements.selectSucursal ? elements.selectSucursal.value : ''));
+      if (franquiciaSeleccionada && franquiciaSeleccionada.modelo) {
+        selectModelo.value = franquiciaSeleccionada.modelo;
+      } else {
+        selectModelo.value = 'Cafetería';
+      }
+    } else {
+      grupoModelo.style.display = 'none';
+    }
+  }
+}
+
+// Llenar el select de sucursal/franquicia en el modal
+function cargarSucursalesModal(tipo) {
+  const select = elements.selectSucursal;
+  if (!select) return;
+  select.innerHTML = '<option value="" selected disabled>Seleccione una opción</option>';
+  let lista = [];
+  if (esAdmin()) {
+    // Mostrar ambas listas combinadas para admin
+    lista = [...sucursales, ...franquicias];
+  } else if (esFranquiciasUser()) {
+    lista = franquicias;
+  } else if (esGopUser()) {
+    lista = sucursales;
+  }
+  lista.forEach(item => {
+    if (!item.activa) return;
+    
+    const option = document.createElement('option');
+    option.value = item.id;
+    option.textContent = item.nombre;
+    select.appendChild(option);
+  });
+}
+
+// --- INICIO LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
+// Lista de franquicias (nombre exacto)
+const NOMBRES_FRANQUICIAS = [
+  'Vía 2',
+  'City center',
+  'Cárdenas',
+  'Paraíso',
+  'Dos Bocas',
+  'Cumuapa',
+  'Cunduacán',
+  'Jalpa de Méndez',
+  'Cd del Cármen'
+];
+
+function esFranquiciasUser() {
+  return state.currentUser && state.currentUser.email === 'franquicias@cafelacabana.com';
+}
+
+function esGopUser() {
+  return state.currentUser && state.currentUser.email === 'gop@cafelacabana.com';
+}
+
+// Filtra las sucursales según el usuario logueado
+function obtenerSucursalesVisibles() {
+  if (esAdmin()) return [...sucursales, ...franquicias];
+  if (esFranquiciasUser()) {
+    return [...franquicias];
+  }
+  if (esGopUser()) {
+    return [...sucursales];
+  }
+  return [];
+}
+
+// --- FIN LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
+
+// Inicializar la aplicación cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+  // Ocultar todas las secciones excepto dashboard al cargar
+  document.querySelectorAll('.section-content').forEach(sec => {
+    if (sec.id === 'dashboard') {
+      sec.style.display = '';
+    } else {
+      sec.style.display = 'none';
+    }
+  });
+
+  // Manejar clics en la barra de navegación
+  elements.navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const sectionId = e.currentTarget.getAttribute('data-section');
+      document.querySelectorAll('.section-content').forEach(sec => {
+        sec.style.display = (sec.id === sectionId) ? '' : 'none';
+      });
+      // Lanzar evento personalizado para lógica extra si es necesario
+      document.dispatchEvent(new CustomEvent('sectionShown', { detail: { sectionId: sectionId } }));
+    });
+  });
+
+  initApp().catch(error => {
+    console.error('Error al inicializar la aplicación:', error);
+    showNotification('Error al iniciar la aplicación', 'error');
+  });
+});
+
+// --- NUEVO: Función para exportar la tabla de evaluaciones a PDF ---
+function exportarPDF() {
+  try {
+    // Obtener el mes seleccionado
+    const selectorMes = document.getElementById('selectorMes');
+    if (!selectorMes || !selectorMes.value) {
+      showNotification('Seleccione un mes para exportar.', 'warning');
+      return;
+    }
+    
+    // Mostrar indicador de carga
+    showLoading();
+    
+    // Verificar que la librería XLSX esté disponible
+    if (typeof XLSX === 'undefined') {
+      throw new Error('La librería XLSX no está disponible');
+    }
+    
+    // Obtener datos de la tabla
+    const table = document.getElementById('tablaHistorialEvaluaciones').parentElement;
+    if (!table || table.rows.length <= 1) {
+      // Si no hay datos en la tabla, intentar cargarlos directamente desde Firestore
+      exportarPDFConDatos(selectorMes.value);
+      return;
+    }
+    
+    // Si hay datos en la tabla, exportarlos directamente
+    const wb = XLSX.utils.table_to_book(table, { sheet: "Evaluaciones" });
+    XLSX.writeFile(wb, `evaluaciones-${selectorMes.value}.xlsx`);
+    
+    // Ocultar indicador de carga
+    hideLoading();
+  } catch (error) {
+    console.error('Error al exportar PDF:', error);
+    hideLoading();
+    showNotification('Error al exportar a PDF: ' + error.message, 'error');
+  }
+}
+
+// Función auxiliar para exportar PDF con datos obtenidos directamente de Firestore
+async function exportarPDFConDatos(yyyymm) {
+  try {
+    // Obtener datos del mes seleccionado
+    const [year, month] = yyyymm.split('-');
+    const inicio = new Date(Number(year), Number(month) - 1, 1);
+    const fin = new Date(Number(year), Number(month), 1, 0, 0, 0); // primer día del mes siguiente
+    
+    // Consulta Firestore por evaluaciones de ese rango de fechas
+    let q = query(
+      collection(db, 'evaluaciones'),
+      where('fecha', '>=', inicio),
+      where('fecha', '<', fin),
+      orderBy('fecha', 'desc')
+    );
+    
+    // Filtrar según el rol del usuario
+    if (esFranquiciasUser()) {
+      q = query(q, where('tipo', '==', 'franquicia'));
+    } else if (esGopUser()) {
+      q = query(q, where('tipo', '==', 'sucursal'));
+    }
+    
+    const snapshot = await getDocs(q);
+    const rows = [];
+    
+    snapshot.forEach(docSnap => {
+      const ev = docSnap.data();
+      rows.push({
+        Fecha: (ev.fecha && ev.fecha.toDate) ? formatDate(ev.fecha.toDate(), 'DD/MM/YYYY HH:mm') : (ev.fecha ? formatDate(new Date(ev.fecha), 'DD/MM/YYYY HH:mm') : '-'),
+        Sucursal: ev.sucursalNombre || 'No disponible',
+        Evaluador: ev.usuarioNombre || 'No disponible',
+        Puntaje: `${ev.puntajeTotal || 0}%`,
+        Estado: ev.completada ? 'Completada' : 'Pendiente'
+      });
+    });
+    
+    if (rows.length === 0) {
+      hideLoading();
+      showNotification('No hay datos para exportar en este mes.', 'warning');
+      return;
+    }
+    
+    // Crear workbook y worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    
+    // Añadir worksheet al workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Evaluaciones");
+    
+    // Guardar el archivo Excel
+    XLSX.writeFile(wb, `evaluaciones-${yyyymm}.xlsx`);
+  } catch (error) {
+    console.error('Error al exportar PDF:', error);
+    hideLoading();
+    showNotification('Error al exportar a PDF: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+// --- GRÁFICA GENERAL DE SUCURSALES ---
+let graficaSucursales = null;
+
+function mostrarGraficaSucursales() {
+  // Agrupa evaluaciones por sucursal y calcula promedio
+  const sucursalesMap = {};
+  state.evaluaciones.forEach(ev => {
+    if (!ev.sucursalNombre) return;
+    if (!sucursalesMap[ev.sucursalNombre]) {
+      sucursalesMap[ev.sucursalNombre] = { total: 0, count: 0 };
+    }
+    sucursalesMap[ev.sucursalNombre].total += ev.puntajeTotal || 0;
+    sucursalesMap[ev.sucursalNombre].count++;
+  });
+  const labels = Object.keys(sucursalesMap);
+  const data = labels.map(suc => {
+    const s = sucursalesMap[suc];
+    return s.count ? Math.round(s.total / s.count) : 0;
+  });
+  const ctx = document.getElementById('graficaSucursales')?.getContext('2d');
+  if (!ctx) return;
+  if (graficaSucursales) {
+    graficaSucursales.destroy();
+  }
+  // Asignar color según el puntaje de cada sucursal
+  const backgroundColors = data.map(score => {
+    if (score >= 96) return '#198754'; // verde (Bootstrap bg-success)
+    if (score >= 91) return '#ffc107'; // amarillo (Bootstrap bg-warning)
+    return '#dc3545'; // rojo (Bootstrap bg-danger)
+  });
+  graficaSucursales = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Puntaje promedio (%)',
+        data: data,
+        backgroundColor: backgroundColors
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100
+        }
+      }
+    }
+  });
+}
+
+document.addEventListener('sectionShown', (e) => {
+  if (e.detail.sectionId === 'reportes') {
+    mostrarGraficaSucursales();
+  }
+});
+
+// --- NUEVO: Función para exportar la tabla de evaluaciones a Excel ---
+function exportarExcel() {
+  try {
+    // Obtener el mes seleccionado
+    const selectorMes = document.getElementById('selectorMes');
+    if (!selectorMes || !selectorMes.value) {
+      showNotification('Seleccione un mes para exportar.', 'warning');
+      return;
+    }
+    
+    // Mostrar indicador de carga
+    showLoading();
+    
+    // Verificar que la librería XLSX esté disponible
+    if (typeof XLSX === 'undefined') {
+      throw new Error('La librería XLSX no está disponible');
+    }
+    
+    // Obtener datos de la tabla
+    const table = document.getElementById('tablaHistorialEvaluaciones').parentElement;
+    if (!table || table.rows.length <= 1) {
+      // Si no hay datos en la tabla, intentar cargarlos directamente desde Firestore
+      exportarExcelConDatos(selectorMes.value);
+      return;
+    }
+    
+    // Si hay datos en la tabla, exportarlos directamente
+    const wb = XLSX.utils.table_to_book(table, { sheet: "Evaluaciones" });
+    XLSX.writeFile(wb, `evaluaciones-${selectorMes.value}.xlsx`);
+    
+    // Ocultar indicador de carga
+    hideLoading();
+  } catch (error) {
+    console.error('Error al exportar Excel:', error);
+    hideLoading();
+    showNotification('Error al exportar a Excel: ' + error.message, 'error');
+  }
+}
+
+// Función auxiliar para exportar Excel con datos obtenidos directamente de Firestore
+async function exportarExcelConDatos(yyyymm) {
+  try {
+    // Obtener datos del mes seleccionado
+    const [year, month] = yyyymm.split('-');
+    const inicio = new Date(Number(year), Number(month) - 1, 1);
+    const fin = new Date(Number(year), Number(month), 1, 0, 0, 0); // primer día del mes siguiente
+    
+    // Consulta Firestore por evaluaciones de ese rango de fechas
+    let q = query(
+      collection(db, 'evaluaciones'),
+      where('fecha', '>=', inicio),
+      where('fecha', '<', fin),
+      orderBy('fecha', 'desc')
+    );
+    
+    // Filtrar según el rol del usuario
+    if (esFranquiciasUser()) {
+      q = query(q, where('tipo', '==', 'franquicia'));
+    } else if (esGopUser()) {
+      q = query(q, where('tipo', '==', 'sucursal'));
+    }
+    
+    const snapshot = await getDocs(q);
+    const rows = [];
+    
+    snapshot.forEach(docSnap => {
+      const ev = docSnap.data();
+      rows.push({
+        Fecha: (ev.fecha && ev.fecha.toDate) ? formatDate(ev.fecha.toDate(), 'DD/MM/YYYY HH:mm') : (ev.fecha ? formatDate(new Date(ev.fecha), 'DD/MM/YYYY HH:mm') : '-'),
+        Sucursal: ev.sucursalNombre || 'No disponible',
+        Evaluador: ev.usuarioNombre || 'No disponible',
+        Puntaje: `${ev.puntajeTotal || 0}%`,
+        Estado: ev.completada ? 'Completada' : 'Pendiente'
+      });
+    });
+    
+    if (rows.length === 0) {
+      hideLoading();
+      showNotification('No hay datos para exportar en este mes.', 'warning');
+      return;
+    }
+    
+    // Crear workbook y worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    
+    // Añadir worksheet al workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Evaluaciones");
+    
+    // Guardar el archivo Excel
+    XLSX.writeFile(wb, `evaluaciones-${yyyymm}.xlsx`);
+  } catch (error) {
+    console.error('Error al exportar Excel:', error);
+    hideLoading();
+    showNotification('Error al exportar a Excel: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}

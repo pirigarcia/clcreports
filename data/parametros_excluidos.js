@@ -39,10 +39,13 @@ window.parametrosExcluidosPorSucursal = {
       "los baños estaban limpios"
     ],
     "guayabal": [
-      "puertas de acceso y vidrios limpios",
+      "tableta",
+      "jarineras y macetas en buen estado",
+      "musica con volumen adecuado",
       "los baños estaban limpios",
-      "se acercaron a tocar mesa",
-      "anotaron en el vaso, el producto solicitado sin tachones ni manchas"
+      "tiempo_fila",
+      
+ 
     ],
     "movil_deportiva": [
       "se acercaron a tocar mesa",
