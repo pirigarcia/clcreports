@@ -1789,3 +1789,59 @@ async function exportarExcelConDatos(yyyymm) {
     hideLoading();
   }
 }
+
+// Exponer la función cargarHistorialEvaluaciones en el objeto window
+window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm) {
+  // Obtener datos del mes seleccionado
+  const [year, month] = yyyymm.split('-');
+  const inicio = new Date(Number(year), Number(month) - 1, 1);
+  const fin = new Date(Number(year), Number(month), 1, 0, 0, 0); // primer día del mes siguiente
+  
+  // Consulta Firestore por evaluaciones de ese rango de fechas
+  let q = query(
+    collection(db, 'evaluaciones'),
+    where('fecha', '>=', inicio),
+    where('fecha', '<', fin),
+    orderBy('fecha', 'desc')
+  );
+  
+  // Filtrar según el rol del usuario
+  if (esFranquiciasUser()) {
+    q = query(q, where('tipo', '==', 'franquicia'));
+  } else if (esGopUser()) {
+    q = query(q, where('tipo', '==', 'sucursal'));
+  }
+  
+  getDocs(q).then(snapshot => {
+    const tabla = document.getElementById('tablaHistorialEvaluaciones');
+    if (!tabla) return;
+    const tbody = tabla.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (snapshot.size === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td colspan="5" class="text-center py-4 text-muted">
+          No se encontraron evaluaciones
+        </td>
+      `;
+      tbody.appendChild(tr);
+      return;
+    }
+    snapshot.forEach(docSnap => {
+      const ev = docSnap.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${formatDate(ev.fecha.toDate(), 'DD/MM/YYYY HH:mm')}</td>
+        <td>${ev.sucursalNombre}</td>
+        <td>${ev.usuarioNombre}</td>
+        <td>${ev.puntajeTotal}%</td>
+        <td>${ev.completada ? 'Completada' : 'Pendiente'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }).catch(error => {
+    console.error('Error al cargar historial de evaluaciones:', error);
+    showNotification('Error al cargar el historial de evaluaciones', 'error');
+  });
+};
