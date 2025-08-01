@@ -22,6 +22,7 @@ import {
 import { sucursales, obtenerSucursalPorId } from '../data/sucursales.js';
 import { franquicias, obtenerFranquiciaPorId } from '../data/franquicias.js';
 import { categorias, parametros as parametrosData } from '../data/parametros.js';
+import { videoLinks } from '../data/video_links.js';
 window.valores = parametrosData;
 import { showSection, createElement, formatDate, showLoading, hideLoading, showNotification } from './utils/dom.js';
 
@@ -529,6 +530,27 @@ function actualizarTablaEvaluaciones() {
     const fecha = formatDate(evaluacion.fecha, 'DD/MM/YYYY HH:mm');
     const estado = evaluacion.completada ? 'Completada' : 'Pendiente';
     const estadoClass = evaluacion.completada ? 'success' : 'warning';
+    // --- VIDEO BUTTON MULTIMES ---
+    let videoUrl = null;
+    let videoMonth = null;
+    for (const m in videoLinks) {
+      if (videoLinks[m]?.[evaluacion.sucursalId]) {
+        videoUrl = videoLinks[m][evaluacion.sucursalId];
+        videoMonth = m;
+        break;
+      }
+      if (videoLinks[m]?.[evaluacion.franquiciaId]) {
+        videoUrl = videoLinks[m][evaluacion.franquiciaId];
+        videoMonth = m;
+        break;
+      }
+    }
+    const videoBtn = videoUrl ? `
+      <button class="btn btn-sm btn-outline-danger btn-video ms-1" data-url="${videoUrl}" title="Video de evaluación (${videoMonth})">
+        <i class="bi bi-youtube"></i>
+      </button>
+    ` : '';
+    // --- END VIDEO BUTTON MULTIMES ---
     const tr = document.createElement('tr');
     tr.className = 'fade-in';
     tr.innerHTML = `
@@ -551,6 +573,7 @@ function actualizarTablaEvaluaciones() {
           <i class="fas fa-trash"></i>
         </button>
         ` : ''}
+        ${videoBtn}
       </td>
     `;
     tbody.appendChild(tr);
@@ -567,6 +590,34 @@ function actualizarTablaEvaluaciones() {
       btn.addEventListener('click', (e) => confirmarEliminarEvaluacion(e.target.closest('button').dataset.id));
     });
   }
+  // --- VIDEO BUTTON EVENT LISTENER ---
+  tbody.querySelectorAll('.btn-video').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const url = btn.dataset.url;
+      if (url) {
+        // Extraer el ID del video de YouTube
+        const match = url.match(/(?:youtu.be\/|youtube.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+        const videoId = match ? match[1] : null;
+        if (videoId) {
+          const container = document.getElementById('youtubePlayerContainer');
+          if (container) {
+            container.innerHTML = `<div class='ratio ratio-16x9'><iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}?autoplay=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
+          }
+          const modalEl = document.getElementById('modalYoutubePlayer');
+          if (modalEl && window.bootstrap) {
+            const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+          }
+        } else {
+          window.open(url, '_blank', 'noopener'); // fallback
+        }
+      }
+    });
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+      new window.bootstrap.Tooltip(btn);
+    }
+  });
+  // --- END VIDEO BUTTON EVENT LISTENER ---
 }
 
 // Ver los detalles de una evaluación
@@ -1147,221 +1198,6 @@ modalNuevaEvaluacionEl.addEventListener('show.bs.modal', async () => {
   autocompletarParametrosPorDefecto();
 });
 
-// --- VALORES POR DEFECTO PARA PARÁMETROS DE EVALUACIÓN ---
-const valoresPorDefectoParametros = {
-  'bienvenida': 4,
-  'conocimiento_productos': 2,
-  'producto_mes': 3,
-  'venta_cruzada': 5,
-  'tocar_mesa': 2,
-  'app_cabana_cash': 4,
-  'ticket': 3,
-  'agradecimiento': 2,
-  'tiempo_espera_atencion': 3,
-  'tiempo_fila': 3,
-  'tiempo_espera_cafe': 0,
-  'cantidad_colaboradores': 1,
-  'anotar_vaso': 4,
-  'presentacion_cafe': 6,
-  'presentacion_alimento': 6,
-  'pin_personalizador': 2,
-  'colaboradores_limpios': 3,
-  'tableta': 3,
-  'fachada_limpia': 1,
-  'letrero': 1,
-  'jardineras': 2,
-  'iluminacion': 2,
-  'puertas_vidrios': 2,
-  'musica': 2,
-  'mostrador_limpio': 2,
-  'sillas_limpias': 2,
-  'piso_limpio': 3,
-  'banos_limpios': 2,
-  'botes_limpios': 2,
-  'barra_limpia': 1,
-  'panera_limpia': 1,
-  'clima_funcionando': 4,
-  'mesas_buen_estado': 3
-};
-
-// Autocompletar valores por defecto al cargar el formulario de evaluación
-function autocompletarParametrosPorDefecto() {
-  const esMovil = esEvaluacionMovil();
-  window.valores.forEach(param => {
-    if (esMovil && parametrosExcluidosMovil.includes(param.id)) return;
-    const valor = valoresPorDefectoParametros[param.id];
-    if (valor !== undefined) {
-      const radios = document.getElementsByName(param.id);
-      if (radios && radios.length > 0) {
-        radios.forEach(radio => {
-          if (String(radio.value) === String(valor)) {
-            radio.checked = true;
-          }
-        });
-      }
-      const input = document.getElementById(param.id);
-      if (input && input.type === 'number') {
-        input.value = valor;
-      }
-      if (input && (input.tagName === 'SELECT' || input.type === 'range')) {
-        input.value = valor;
-      }
-    }
-  });
-}
-
-// --- PARÁMETROS QUE NO APLICAN PARA MÓVIL ---
-const parametrosExcluidosMovil = [
-  'atencion_mesa',
-  'tableta',
-  'puertas_vidrios',
-  'musica_volumen',
-  'mesas_sillas_limpieza',
-  'banos_estado',
-  'basura_estado',
-  'barra_limpieza',
-  'mesas_sillas_estado'
-];
-
-// Detectar si la sucursal o franquicia seleccionada es modelo Móvil
-function esEvaluacionMovil() {
-  // Si el modal está abierto, usamos el select de sucursal/franquicia
-  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
-  let id = elements.selectSucursal ? elements.selectSucursal.value : '';
-
-  // Verificar franquicia
-  if (tipo === 'franquicia' && id) {
-    const franquicia = franquicias.find(f => f.id === id);
-    if (franquicia && franquicia.modelo && ['móvil','movil'].includes(franquicia.modelo.toLowerCase())) {
-      return true;
-    }
-  }
-  // Verificar sucursal
-  if (tipo === 'sucursal' && id) {
-    const sucursal = sucursales.find(s => s.id === id);
-    if (sucursal && sucursal.modelo && ['móvil','movil'].includes(sucursal.modelo.toLowerCase())) {
-      return true;
-    }
-  }
-
-  // Soportar edición/lectura de evaluación existente (franquicia)
-  if (state.currentEvaluation && state.currentEvaluation.tipo === 'franquicia') {
-    const franquicia = franquicias.find(f => f.id === state.currentEvaluation.sucursalId);
-    if (franquicia && franquicia.modelo && ['móvil','movil'].includes(franquicia.modelo.toLowerCase())) {
-      return true;
-    }
-  }
-  // Soportar edición/lectura de evaluación existente (sucursal)
-  if (state.currentEvaluation && state.currentEvaluation.tipo === 'sucursal') {
-    const sucursal = sucursales.find(s => s.id === state.currentEvaluation.sucursalId);
-    if (sucursal && sucursal.modelo && ['móvil','movil'].includes(sucursal.modelo.toLowerCase())) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Detectar si la sucursal o franquicia seleccionada es modelo Express
-function esEvaluacionExpress() {
-  // Si el modal está abierto, usamos el select de sucursal/franquicia
-  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
-  let id = elements.selectSucursal ? elements.selectSucursal.value : '';
-
-  // Verificar franquicia
-  if (tipo === 'franquicia' && id) {
-    const franquicia = franquicias.find(f => f.id === id);
-    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'express') {
-      return true;
-    }
-  }
-  // Verificar sucursal
-  if (tipo === 'sucursal' && id) {
-    const sucursal = sucursales.find(s => s.id === id);
-    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'express') {
-      return true;
-    }
-  }
-
-  // Soportar edición/lectura de evaluación existente (franquicia)
-  if (state.currentEvaluation && state.currentEvaluation.tipo === 'franquicia') {
-    const franquicia = franquicias.find(f => f.id === state.currentEvaluation.sucursalId);
-    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'express') {
-      return true;
-    }
-  }
-  // Soportar edición/lectura de evaluación existente (sucursal)
-  if (state.currentEvaluation && state.currentEvaluation.tipo === 'sucursal') {
-    const sucursal = sucursales.find(s => s.id === state.currentEvaluation.sucursalId);
-    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'express') {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Detectar si la sucursal o franquicia seleccionada es modelo Cafetería
-function esEvaluacionCafeteria() {
-  // Si el modal está abierto, usamos el select de sucursal/franquicia
-  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
-  let id = elements.selectSucursal ? elements.selectSucursal.value : '';
-
-  // Verificar franquicia
-  if (tipo === 'franquicia' && id) {
-    const franquicia = franquicias.find(f => f.id === id);
-    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'cafetería') {
-      return true;
-    }
-  }
-  // Verificar sucursal
-  if (tipo === 'sucursal' && id) {
-    const sucursal = sucursales.find(s => s.id === id);
-    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'cafetería') {
-      return true;
-    }
-  }
-
-  // Soportar edición/lectura de evaluación existente (franquicia)
-  if (state.currentEvaluation && state.currentEvaluation.tipo === 'franquicia') {
-    const franquicia = franquicias.find(f => f.id === state.currentEvaluation.sucursalId);
-    if (franquicia && franquicia.modelo && franquicia.modelo.toLowerCase() === 'cafetería') {
-      return true;
-    }
-  }
-  // Soportar edición/lectura de evaluación existente (sucursal)
-  if (state.currentEvaluation && state.currentEvaluation.tipo === 'sucursal') {
-    const sucursal = sucursales.find(s => s.id === state.currentEvaluation.sucursalId);
-    if (sucursal && sucursal.modelo && sucursal.modelo.toLowerCase() === 'cafetería') {
-      return true;
-    }
-  }
-  return false;
-}
-
-// --- FORZAR RERENDER DE PARÁMETROS AL CAMBIAR SUCURSAL O MODELO ---
-if (elements.selectSucursal) {
-  elements.selectSucursal.addEventListener('change', () => {
-    cargarParametrosEvaluacion();
-    autocompletarParametrosPorDefecto();
-  });
-}
-if (elements.tipoCafeSelect) {
-  elements.tipoCafeSelect.addEventListener('change', () => {
-    cargarParametrosEvaluacion();
-    autocompletarParametrosPorDefecto();
-  });
-}
-
-// Al abrir el modal de nueva evaluación, después de cargar sucursales, renderizar parámetros correctamente
-if (modalNuevaEvaluacionEl) {
-  modalNuevaEvaluacionEl.addEventListener('show.bs.modal', async () => {
-    const tipo = esAdmin() && elements.tipoCafeSelect ? elements.tipoCafeSelect.value : (esFranquiciasUser() ? 'franquicia' : 'sucursal');
-    await cargarSucursalesModal(tipo); // Espera a que se cargue el select
-    // IMPORTANTE: renderizar parámetros acorde a la selección inicial
-    cargarParametrosEvaluacion();
-    autocompletarParametrosPorDefecto();
-  });
-}
-
 // Renderizar la lista de parámetros en la sección de parámetros
 function renderValoresList() {
   const contenedor = document.getElementById('lista-parametros');
@@ -1845,3 +1681,108 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
     showNotification('Error al cargar el historial de evaluaciones', 'error');
   });
 };
+
+// --- MODAL YOUTUBE PLAYER ---
+// Agrega un modal para el reproductor de YouTube si no existe
+if (!document.getElementById('modalYoutubePlayer')) {
+  const modalHtml = `
+    <div class="modal fade" id="modalYoutubePlayer" tabindex="-1" aria-labelledby="modalYoutubePlayerLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalYoutubePlayerLabel">Video de Evaluación</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body d-flex justify-content-center">
+            <div id="youtubePlayerContainer" style="width:100%;max-width:720px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+// --- END MODAL YOUTUBE PLAYER ---
+
+// ...dentro de actualizarTablaEvaluaciones...
+  tbody.querySelectorAll('.btn-video').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const url = btn.dataset.url;
+      if (url) {
+        // Extraer el ID del video de YouTube
+        const match = url.match(/(?:youtu.be\/|youtube.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+        const videoId = match ? match[1] : null;
+        if (videoId) {
+          const container = document.getElementById('youtubePlayerContainer');
+          if (container) {
+            container.innerHTML = `<div class='ratio ratio-16x9'><iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}?autoplay=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
+          }
+          const modalEl = document.getElementById('modalYoutubePlayer');
+          if (modalEl && window.bootstrap) {
+            const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+          }
+        } else {
+          window.open(url, '_blank', 'noopener'); // fallback
+        }
+      }
+    });
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+      new window.bootstrap.Tooltip(btn);
+    }
+  });
+// Limpiar el reproductor al cerrar el modal
+const modalEl = document.getElementById('modalYoutubePlayer');
+if (modalEl) {
+  modalEl.addEventListener('hidden.bs.modal', () => {
+    const container = document.getElementById('youtubePlayerContainer');
+    if (container) container.innerHTML = '';
+  });
+}
+
+// --- ADECUAR SELECTOR DE MES ---
+// Suponiendo que tienes un input con id 'selectorMes' y una función renderEvaluaciones(datos)
+
+document.addEventListener('DOMContentLoaded', () => {
+  const selectorMes = document.getElementById('selectorMes');
+  if (!selectorMes) return;
+
+  // Poner mes actual por defecto
+  const now = new Date();
+  const mesActual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  selectorMes.value = mesActual;
+
+  selectorMes.addEventListener('change', () => {
+    filtrarEvaluacionesPorMes(selectorMes.value);
+  });
+
+  // Filtrar al cargar
+  filtrarEvaluacionesPorMes(selectorMes.value);
+});
+
+function filtrarEvaluacionesPorMes(mes) {
+  // Supón que tienes un array global state.evaluaciones con todas las evaluaciones
+  if (!window.state || !state.evaluaciones) return;
+  const filtradas = state.evaluaciones.filter(ev => {
+    // Asume que ev.fechaCreacion es tipo 'YYYY-MM-DD' o similar
+    return ev.fechaCreacion && ev.fechaCreacion.startsWith(mes);
+  });
+  renderEvaluaciones(filtradas, mes);
+}
+
+// Modifica renderEvaluaciones para aceptar el mes y actualizar videos si aplica
+function renderEvaluaciones(evaluaciones, mes) {
+  // ... tu lógica para renderizar la tabla ...
+  // Si usas video_links.js, puedes acceder a videoLinks[mes] para los videos del mes
+}
+
+// Eliminar función filtrarEvaluacionesPorMes si ya no se usa
+
+// function filtrarEvaluacionesPorMes(mes) {
+//   // Supón que tienes un array global state.evaluaciones con todas las evaluaciones
+//   if (!window.state || !state.evaluaciones) return;
+//   const filtradas = state.evaluaciones.filter(ev => {
+//     // Asume que ev.fechaCreacion es tipo 'YYYY-MM-DD' o similar
+//     return ev.fechaCreacion && ev.fechaCreacion.startsWith(mes);
+//   });
+//   renderEvaluaciones(filtradas, mes);
+// }
