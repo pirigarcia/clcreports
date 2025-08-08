@@ -246,16 +246,21 @@ async function initApp() {
   // Inicializar Firebase
   state.currentUser = auth.currentUser;
 
+  window.datosCargados = false;
+  showLoading('Cargando datos...');
   // Cargar sucursales y franquicias
   await cargarSucursales();
   await cargarFranquicias();
+  window.datosCargados = true;
 
   // Cargar evaluaciones
   await cargarEvaluaciones();
 
   // Actualizar dashboard después de cargar datos
   actualizarResumen();
+  // Solo llamar después de que sucursales y franquicias estén listas
   actualizarTablaEvaluaciones();
+  hideLoading();
 
   // Inicializar la matriz
   renderizarMatriz();
@@ -267,6 +272,7 @@ async function cargarSucursales() {
   const q = query(sucursalesRef);
   const querySnapshot = await getDocs(q);
   state.sucursales = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+window.sucursales = state.sucursales; // sincroniza arrays globales
 }
 
 // --- CARGAR FRANQUICIAS ---
@@ -275,6 +281,7 @@ async function cargarFranquicias() {
   const q = query(franquiciasRef);
   const querySnapshot = await getDocs(q);
   state.franquicias = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  window.franquicias = state.franquicias; // sincroniza arrays globales
 }
 
 // --- CARGAR EVALUACIONES ---
@@ -377,6 +384,7 @@ function getNombreSucursalFranquicia(evaluacion) {
       console.warn('[DEBUG][getNombreSucursalFranquicia] No se encontró sucursal para id:', evaluacion.sucursalId, 'IDs disponibles:', (state.sucursales||[]).map(s=>s.id));
     } else {
       console.log('[DEBUG][getNombreSucursalFranquicia] Match sucursal:', suc);
+      console.log('[DEBUG][getNombreSucursalFranquicia] Campos del objeto sucursal:', Object.keys(suc), 'Valores:', suc);
     }
     return suc ? suc.nombre : '-';
   } else if (evaluacion.franquiciaId) {
@@ -420,6 +428,13 @@ function getModeloSucursalFranquicia(evaluacion) {
 }
 
 function actualizarTablaEvaluaciones() {
+  if (!window.datosCargados) {
+    console.warn('[DASHBOARD] Intento de renderizar tabla antes de que datos estén listos.');
+    return;
+  }
+  console.log('[DASHBOARD] window.sucursales:', window.sucursales);
+  console.log('[DASHBOARD] state.sucursales:', state.sucursales);
+
   const tabla = document.getElementById('tabla-evaluaciones');
   if (!tabla) return;
   let tbody = tabla.querySelector('tbody');
@@ -457,8 +472,11 @@ function actualizarTablaEvaluaciones() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${evaluacion.fecha ? formatDate(evaluacion.fecha.toDate ? evaluacion.fecha.toDate() : new Date(evaluacion.fecha), 'DD/MM/YYYY HH:mm') : '-'}</td>
-      <td>${getNombreSucursalFranquicia(evaluacion) || '-'}</td>
-      <td>${getTipoSucursalFranquicia(evaluacion) || '-'}</td>
+      <td title="${getTipoSucursalFranquicia(evaluacion)}: ${evaluacion.sucursalId || evaluacion.franquiciaId}">
+        <span class="nombre-sucursal">${getNombreSucursalFranquicia(evaluacion) || '-'}</span>
+        <br><small class="text-muted">${getTipoSucursalFranquicia(evaluacion)}: ${evaluacion.sucursalId || evaluacion.franquiciaId}</small>
+      </td>
+      <td>${evaluacion.sucursalId ? 'Sucursal' : evaluacion.franquiciaId ? 'Franquicia' : getTipoSucursalFranquicia(evaluacion) || '-'}</td>
       <td>${getModeloSucursalFranquicia(evaluacion) || '-'}</td>
       <td>${evaluacion.usuarioNombre || '-'}</td>
       <td>${typeof evaluacion.puntajeTotal === 'number' ? Math.round(evaluacion.puntajeTotal) : 0}%</td>
@@ -1008,11 +1026,11 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${fechaValida}</td>
-        <td>${ev.sucursalNombre || ev.franquiciaNombre || '-'}</td>
+        <td>${getNombreSucursalFranquicia(ev) || '-'}</td>
         <td>${ev.tipo || '-'}</td>
         <td>${ev.modelo || ev.modeloFranquicia || '-'}</td>
         <td>${ev.usuarioNombre || '-'}</td>
-        <td>${ev.puntajeTotal != null ? ev.puntajeTotal + '%' : '-'}</td>
+        <td>${ev.puntajeTotal != null ? ev.puntajeTotal + '' : '-'}</td>
         <td>${ev.completada ? 'Completada' : 'Pendiente'}</td>
         <td class="text-end">
 
