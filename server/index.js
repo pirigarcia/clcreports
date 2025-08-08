@@ -56,10 +56,95 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Endpoint para exponer config de Firebase al frontend de forma segura
+app.get('/api/firebase-config', (req, res) => {
+  res.json({
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID
+  });
+});
+
 // Ejemplo de endpoint seguro (a futuro se protegería con el token de sesión)
 app.get('/api/evaluaciones', async (req, res) => {
-  // Aquí pones la lógica de consulta a Firestore
-  res.json({ ok: true, data: [] });
+  try {
+    const snapshot = await db.collection('evaluaciones').get();
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ ok: true, data });
+  } catch (error) {
+    console.error('Error obteniendo evaluaciones:', error);
+    res.status(500).json({ ok: false, error: 'Error obteniendo evaluaciones' });
+  }
+});
+
+// --- ENDPOINT PARA SUCURSALES ---
+app.get('/api/sucursales', async (req, res) => {
+  try {
+    const snapshot = await db.collection('sucursales').get();
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ ok: true, data });
+  } catch (error) {
+    console.error('Error obteniendo sucursales:', error);
+    res.status(500).json({ ok: false, error: 'Error obteniendo sucursales' });
+  }
+});
+
+// --- ENDPOINT PARA FRANQUICIAS ---
+app.get('/api/franquicias', async (req, res) => {
+  try {
+    const snapshot = await db.collection('franquicias').get();
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ ok: true, data });
+  } catch (error) {
+    console.error('Error obteniendo franquicias:', error);
+    res.status(500).json({ ok: false, error: 'Error obteniendo franquicias' });
+  }
+});
+
+// --- ENDPOINT PARA PARÁMETROS ---
+app.get('/api/parametros', async (req, res) => {
+  try {
+    const snapshot = await db.collection('parametros').get();
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ ok: true, data });
+  } catch (error) {
+    console.error('Error obteniendo parametros:', error);
+    res.status(500).json({ ok: false, error: 'Error obteniendo parametros' });
+  }
+});
+
+// --- ENDPOINT PARA REPORTES (EVALUACIONES, PUEDES AJUSTAR FILTROS LUEGO) ---
+app.get('/api/reportes', async (req, res) => {
+  try {
+    const snapshot = await db.collection('evaluaciones').get();
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ ok: true, data });
+  } catch (error) {
+    console.error('Error obteniendo reportes:', error);
+    res.status(500).json({ ok: false, error: 'Error obteniendo reportes' });
+  }
+});
+
+// --- ENDPOINT PARA MATRIZ (PUEDES AJUSTAR LÓGICA SEGÚN TU NECESIDAD) ---
+app.get('/api/matriz', async (req, res) => {
+  try {
+    // Aquí puedes ajustar la lógica para la matriz según tu estructura
+    const sucursalesSnap = await db.collection('sucursales').get();
+    const franquiciasSnap = await db.collection('franquicias').get();
+    const parametrosSnap = await db.collection('parametros').get();
+    res.json({
+      ok: true,
+      sucursales: sucursalesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      franquicias: franquiciasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      parametros: parametrosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    });
+  } catch (error) {
+    console.error('Error obteniendo matriz:', error);
+    res.status(500).json({ ok: false, error: 'Error obteniendo matriz' });
+  }
 });
 
 app.listen(3001, () => {

@@ -1,134 +1,211 @@
 // data/parametros_excluidos.js
 
 // Mapea el ID de la sucursal al array de parámetros excluidos
-window.parametrosExcluidosPorSucursal = {
+export const parametrosExcluidosPorSucursal = {
     // Usa el ID real de cada sucursal/franquicia aquí:
     "americas": [
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "los baños estaban limpios"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "banos_estado"
     ],
     "centro": [
-      "jardineras y macetas en buen estado",
-      "musica con volumen adecuado",
-      "botes de basura estaban limpios y no llenos"
+      "jardineras_macetas",
+      "musica_volumen",
+      "basura_estado"
     ],
     "crystal": [
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "los baños estaban limpios"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "banos_estado"
     ],
     "galerias": [
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "los baños estaban limpios"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "banos_estado"
     ],
     "angeles": [
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "los baños estaban limpios"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "banos_estado"
     ],
     "altabrisa": [
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "los baños estaban limpios"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "banos_estado"
     ],
     "guayabal": [
-      "tableta",
-      "jarineras y macetas en buen estado",
-      "musica con volumen adecuado",
-      "los baños estaban limpios",
-      "tiempo_fila",
       
- 
-    ],
-    "movil_deportiva": [
-      "se acercaron a tocar mesa",
       "tableta",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "sillas y mesas dentro limpias",
-      "mesas y sillas en buen estado",
-      "los baños estaban limpios",
-      "botes de basura limpios y no llenos",
-      "la barra de atrás estaba limpia y ordenada",
-      "mesas y sillas en buen estado"
+      "jardineras_macetas",
+      "musica_volumen",
+      "banos_estado",
+      "tiempo_fila"
+    ],
+    "movil-deportiva": [
+      "atencion_mesa",
+      "tableta",
+      "puertas_vidrios",
+      "musica_volumen",
+      "mesas_sillas_limpieza",
+      "mesas_sillas_estado",
+      "banos_estado",
+      "basura_estado",
+      "barra_limpieza",
+      "mesas_sillas_estado"
     ],
     "deportiva": [
-      "puertas de acceso y vidrios limpios"
+      "puertas_vidrios"
     ],
-    "movil_venta": [
-      "se acercaron a tocar mesa",
+    "movil-la-venta": [
+      "atencion_mesa",
       "tableta",
-      "jardineras y macetas en buen estado",
-      "puerta de acceso y vidrios limpios",
-      "la musica con volumen adecuado",
-      "sillas y mesas estaban limpias",
-      "el piso estaba limpio",
-      "los baños estaban limpios",
-      "botes de basura limpios y no llenos",
-      "la barra de atrás estaba limpia y ordenada",
-      "mesas y sillas en buen estado"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "mesas_sillas_limpieza",
+      "piso_limpieza",
+      "banos_estado",
+      "basura_estado",
+      "barra_limpieza",
+      "mesas_sillas_estado"
     ],
     "olmeca": [
-      "jardineras y macetas en buen estado"
+      "jardineras_macetas"
     ],
     "pista": [
-      "se acercaron a tocar mesa",
+      "atencion_mesa",
       "tableta",
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "sillas y mesas estaban limpias",
-      "el piso estaba limpio",
-      "los baños estaban limpios",
-      "botes de basura limpios y no llenos",
-      "clima de la sucursal funcionando",
-      "mesas y sillas en buen estado"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "mesas_sillas_limpieza",
+      "piso_limpieza",
+      "banos_estado",
+      "basura_estado",
+      "clima_funcionando",
+      "mesas_sillas_estado"
     ],
-    "walmart_carrizal": [
+    "walmart-carrizal": [
       "tableta",
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "los baños estaban limpios"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "banos_estado"
     ],
-    "walmart_deportiva": [
-      "se acercaron a tocar mesa",
+    "walmart-deportiva": [
+      "atencion_mesa",
       "tableta",
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "sillas y mesas estaban limpias",
-      "el piso estaba limpio",
-      "los baños estaban limpios",
-      "botes de basura limpios y no llenos",
-      "mesas y sillas en buen estado"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "mesas_sillas_limpieza",
+      "piso_limpieza",
+      "banos_estado",
+      "basura_estado",
+      "mesas_sillas_estado"
     ],
-    "walmart_universidad": [
+    "walmart-universidad": [
       "tableta",
-      "jardineras y macetas en buen estado",
-      "puertas de acceso y vidrios limpios",
-      "musica con volumen adecuado",
-      "los baños estaban limpios"
+      "jardineras_macetas",
+      "puertas_vidrios",
+      "musica_volumen",
+      "banos_estado"
     ],
     "usuma": [
-      "jardineras y macetas en buen estado",
-      "musica con volumen adecuado",
-      "botes de basura estaban limpios y no llenos"
+      "jardineras_macetas",
+      "musica_volumen",
+      "basura_estado"
     ]
   };
-  
+
+  // Mapea el ID de la franquicia al array de parámetros excluidos
+export const parametrosExcluidosPorFranquicia = {
+  // Franquicias cafetería
+  "via2": [
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "banos_estado"
+  ],
+  "citycenter": [
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "banos_estado"
+  ],
+  "cardenas": [
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "banos_estado"
+  ],
+  "paraiso": [
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "banos_estado"
+  ],
+  "cunduacan": [
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "banos_estado"
+  ],
+  "jalpa": [
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "banos_estado"
+  ],
+  "cd-carmen": [
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "banos_estado"
+  ],
+
+  // Franquicias móviles
+  "cumuapa": [
+    "atencion_mesa",
+    "tableta",
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "mesas_sillas_limpieza",
+    "piso_limpieza",
+    "banos_estado",
+    "basura_estado",
+    "barra_limpieza",
+    "mesas_sillas_estado"
+  ],
+  "dosbocas": [
+    "atencion_mesa",
+    "tableta",
+    "jardineras_macetas",
+    "puertas_vidrios",
+    "musica_volumen",
+    "mesas_sillas_limpieza",
+    "piso_limpieza",
+    "banos_estado",
+    "basura_estado",
+    "barra_limpieza",
+    "mesas_sillas_estado"
+  ]
+};
+
   /**
    * Devuelve el array de parámetros excluidos para una sucursal por su ID.
    * @param {string} sucursalId
    * @returns {string[]} Array de parámetros a excluir, o [] si no hay exclusiones.
    */
-  window.obtenerParametrosExcluidos = function(sucursalId) {
-    return window.parametrosExcluidosPorSucursal[sucursalId] || [];
+  export function obtenerParametrosExcluidos(sucursalId) {
+    return parametrosExcluidosPorSucursal[sucursalId] || [];
+  }
+  export function obtenerParametrosExcluidosFranquicia(franquiciaId) {
+    return parametrosExcluidosPorFranquicia[franquiciaId] || [];
   }

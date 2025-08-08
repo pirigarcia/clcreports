@@ -1,5 +1,5 @@
 // Categorías de evaluación
-export const categorias = [
+const categorias = [
   {
     id: 'bienvenida',
     nombre: 'Bienvenida y Atención al Cliente',
@@ -19,7 +19,7 @@ export const categorias = [
     nombre: 'Atención en Mesa',
     descripcion: 'Parámetros relacionados con el servicio en mesa',
     peso: 15,
-    aplicaATodas: true
+    aplicaATodas: false
   },
   {
     id: 'tiempos',
@@ -47,14 +47,14 @@ export const categorias = [
     nombre: 'Instalaciones - Exteriores',
     descripcion: 'Parámetros relacionados con las áreas exteriores de la sucursal',
     peso: 10,
-    aplicaATodas: true
+    aplicaATodas: false
   },
   {
     id: 'interiores',
     nombre: 'Instalaciones - Interiores',
     descripcion: 'Parámetros relacionados con las áreas interiores de la sucursal',
     peso: 15,
-    aplicaATodas: true
+    aplicaATodas: false
   }
 ];
 
@@ -67,7 +67,7 @@ export const parametros = [
     nombre: 'Contacto visual y saludo',
     descripcion: 'El colaborador lo saludó verbalmente y estableció contacto visual',
     tipo: 'booleano',
-    peso: 1,
+    peso:4,
     aplicaATodas: true
   },
   {
@@ -76,7 +76,7 @@ export const parametros = [
     nombre: 'Agradecimiento y despedida',
     descripcion: 'El colaborador dio las gracias e invitó a volver',
     tipo: 'booleano',
-    peso: 1,
+    peso: 2,
     aplicaATodas: true
   },
 
@@ -105,7 +105,7 @@ export const parametros = [
     nombre: 'Venta cruzada',
     descripcion: 'Ofreció productos adicionales (venta cruzada o sugerida)',
     tipo: 'booleano',
-    peso: 1,
+    peso: 5,
     aplicaATodas: true
   },
   {
@@ -135,7 +135,7 @@ export const parametros = [
     descripcion: 'Se acercaron a la mesa para identificar necesidades/recoger',
     tipo: 'booleano',
     peso: 2,
-    aplicaATodas: true
+    aplicaATodas: false
   },
   {
     id: 'entrega_ticket',
@@ -143,7 +143,7 @@ export const parametros = [
     nombre: 'Entrega de ticket',
     descripcion: 'Se entregó el ticket',
     tipo: 'booleano',
-    peso: 1,
+    peso: 3,
     aplicaATodas: true
   },
 
@@ -155,7 +155,7 @@ export const parametros = [
     descripcion: 'Tiempo total de espera de atención',
     tipo: 'rango',
     opciones: ['Menos de 2 min', '2-5 min', '5-10 min', 'Más de 10 min'],
-    peso: 5,
+    peso: 3,
     aplicaATodas: true
   },
   {
@@ -165,8 +165,8 @@ export const parametros = [
     descripcion: 'Tiempo total en la fila',
     tipo: 'rango',
     opciones: ['Menos de 2 min', '2-5 min', '5-10 min', 'Más de 10 min'],
-    peso: 5,
-    aplicaATodas: true
+    peso: 3,
+    aplicaATodas: false
   },
   {
     id: 'tiempo_espera_cafe',
@@ -175,7 +175,7 @@ export const parametros = [
     descripcion: 'Tiempo de espera para el café',
     tipo: 'rango',
     opciones: ['Menos de 2 min', '2-5 min', '5-10 min', 'Más de 10 min'],
-    peso: 5,
+    peso: 4,
     aplicaATodas: true
   },
 
@@ -195,7 +195,7 @@ export const parametros = [
     nombre: 'Apariencia del personal',
     descripcion: 'Los colaboradores estaban limpios y de buena apariencia (uniformes negros)',
     tipo: 'booleano',
-    peso: 1,
+    peso: 3,
     aplicaATodas: true
   },
   {
@@ -204,8 +204,8 @@ export const parametros = [
     nombre: 'Uso de tableta',
     descripcion: 'Estado y uso de la tableta',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 3,
+    aplicaATodas: false
   },
 
   // Presentación del Producto
@@ -215,7 +215,7 @@ export const parametros = [
     nombre: 'Presentación del vaso',
     descripcion: 'Anotaron en el vaso el producto sin tachones ni manchas',
     tipo: 'booleano',
-    peso: 1,
+    peso: 4,
     aplicaATodas: true
   },
   {
@@ -224,7 +224,7 @@ export const parametros = [
     nombre: 'Presentación del café',
     descripcion: 'Presentación del café adecuada (sin manchas)',
     tipo: 'booleano',
-    peso: 1,
+    peso: 6,
     aplicaATodas: true
   },
   {
@@ -233,7 +233,7 @@ export const parametros = [
     nombre: 'Presentación de alimentos',
     descripcion: 'Presentación visual correcta del alimento',
     tipo: 'booleano',
-    peso: 1,
+    peso: 6,
     aplicaATodas: true
   },
   {
@@ -272,7 +272,7 @@ export const parametros = [
     descripcion: 'Jardineras y macetas en buen estado y limpias',
     tipo: 'booleano',
     peso: 1,
-    aplicaATodas: true
+    aplicaATodas: false
   },
 
   // Instalaciones - Interiores
@@ -282,8 +282,8 @@ export const parametros = [
     nombre: 'Iluminación',
     descripcion: 'Iluminación interior en buen estado',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 2,
+    aplicaATodas: false
   },
   {
     id: 'puertas_vidrios',
@@ -291,8 +291,8 @@ export const parametros = [
     nombre: 'Puertas y vidrios',
     descripcion: 'Puertas de acceso y vidrios limpios',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 2,
+    aplicaATodas: false
   },
   {
     id: 'musica_volumen',
@@ -300,8 +300,8 @@ export const parametros = [
     nombre: 'Música y volumen',
     descripcion: 'Música con volumen adecuado (instrumental o bossa nova)',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 2,
+    aplicaATodas: false
   },
   {
     id: 'area_mostrador',
@@ -309,8 +309,8 @@ export const parametros = [
     nombre: 'Área de mostrador',
     descripcion: 'Área de mostrador con orden y limpieza',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 2,
+    aplicaATodas: false
   },
   {
     id: 'mesas_sillas_limpieza',
@@ -318,8 +318,8 @@ export const parametros = [
     nombre: 'Limpieza de mesas y sillas',
     descripcion: 'Sillas y mesas (dentro y fuera) limpias',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 2,
+    aplicaATodas: false
   },
   {
     id: 'piso_limpieza',
@@ -327,8 +327,8 @@ export const parametros = [
     nombre: 'Limpieza de pisos',
     descripcion: 'Piso limpio',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 3,
+    aplicaATodas: false
   },
   {
     id: 'banos_estado',
@@ -336,8 +336,8 @@ export const parametros = [
     nombre: 'Estado de baños',
     descripcion: 'Baños limpios (vidrios, olor, papel, jabón)',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 2,
+    aplicaATodas: false
   },
   {
     id: 'basura_estado',
@@ -345,8 +345,8 @@ export const parametros = [
     nombre: 'Estado de botes de basura',
     descripcion: 'Botes de basura limpios y no llenos',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 2,
+    aplicaATodas: false
   },
   {
     id: 'barra_limpieza',
@@ -355,7 +355,7 @@ export const parametros = [
     descripcion: 'Barra trasera limpia y ordenada',
     tipo: 'booleano',
     peso: 1,
-    aplicaATodas: true
+    aplicaATodas: false
   },
   {
     id: 'clima_funcionando',
@@ -363,7 +363,7 @@ export const parametros = [
     nombre: 'Climatización',
     descripcion: 'Climatización funcionando correctamente',
     tipo: 'booleano',
-    peso: 1,
+    peso: 4,
     aplicaATodas: true
   },
   {
@@ -372,10 +372,12 @@ export const parametros = [
     nombre: 'Estado de muebles',
     descripcion: 'Mesas y sillas en buen estado físico',
     tipo: 'booleano',
-    peso: 1,
-    aplicaATodas: true
+    peso: 3,
+    aplicaATodas: false
   }
 ];
+
+window.parametrosData = parametros;
 
 // Funciones de utilidad
 
@@ -383,10 +385,10 @@ export const parametros = [
  * Obtiene los parámetros agrupados por categoría
  * @returns {Object} Objeto con los parámetros agrupados por categoría
  */
-export function getParametrosPorCategoria() {
+function getParametrosPorCategoria() {
   return categorias.map(categoria => ({
     ...categoria,
-    parametros: parametros.filter(p => p.categoriaId === categoria.id)
+    parametros: window.parametrosData.filter(p => p.categoriaId === categoria.id)
   }));
 }
 
@@ -395,8 +397,8 @@ export function getParametrosPorCategoria() {
  * @param {string} id - ID del parámetro a buscar
  * @returns {Object} Parámetro encontrado o undefined
  */
-export function getParametroPorId(id) {
-  return parametros.find(p => p.id === id);
+function getParametroPorId(id) {
+  return window.parametrosData.find(p => p.id === id);
 }
 
 /**
@@ -404,8 +406,8 @@ export function getParametroPorId(id) {
  * @param {string} sucursalId - ID de la sucursal
  * @returns {Array} Lista de parámetros que aplican a la sucursal
  */
-export function getParametrosParaSucursal(sucursalId) {
-  return parametros.filter(p => 
+function getParametrosParaSucursal(sucursalId) {
+  return window.parametrosData.filter(p => 
     p.aplicaATodas || 
     (p.sucursalesEspecificas && p.sucursalesEspecificas.includes(sucursalId))
   );
@@ -416,7 +418,15 @@ export function getParametrosParaSucursal(sucursalId) {
  * @param {string} sucursalId - ID de la sucursal (opcional)
  * @returns {number} Puntaje máximo posible
  */
-export function getPuntajeMaximo(sucursalId = null) {
-  const params = sucursalId ? getParametrosParaSucursal(sucursalId) : parametros;
+function getPuntajeMaximo(sucursalId = null) {
+  const params = sucursalId ? getParametrosParaSucursal(sucursalId) : window.parametrosData;
   return params.reduce((total, param) => total + param.peso, 0);
 }
+
+export {
+  categorias,
+  getParametrosPorCategoria,
+  getParametroPorId,
+  getParametrosParaSucursal,
+  getPuntajeMaximo
+};

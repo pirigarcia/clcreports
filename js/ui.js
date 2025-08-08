@@ -1,4 +1,4 @@
-import { getCurrentUser, subscribeToAuthChanges, logout } from './auth.js';
+import { login, logout, getCurrentUser, subscribeToAuthChanges } from './auth.js';
 import { showSection } from './utils/dom.js';
 
 export const initUI = (user) => {
@@ -19,9 +19,6 @@ export const initUI = (user) => {
     subscribeToAuthChanges(handleAuthStateChange);
 };
 
-/**
- * Configura los manejadores de eventos globales
- */
 function setupEventListeners() {
     // Navegación
     document.querySelectorAll('[data-section]').forEach(link => {
@@ -31,21 +28,7 @@ function setupEventListeners() {
             showSection(sectionId);
         });
     });
-    
-    // Botón de logout
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await logout();
-                showSection('login');
-            } catch (error) {
-                console.error('Error al cerrar sesión:', error);
-                showNotification('Error al cerrar sesión', 'error');
-            }
-        });
-    }
-    
+
     // Formulario de login
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
@@ -53,35 +36,23 @@ function setupEventListeners() {
     }
 }
 
-/**
- * Maneja el envío del formulario de login
- * @param {Event} e - Evento de envío del formulario
- */
 async function handleLogin(e) {
     e.preventDefault();
-    
     const form = e.target;
     const email = form.email.value;
     const password = form.password.value;
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalBtnText = submitBtn.textContent;
-    
     try {
-        // Mostrar estado de carga
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Iniciando sesión...';
-        
-        // Intentar iniciar sesión
         await login(email, password);
-        
-        // Redirigir al dashboard
         showSection('dashboard');
         showNotification('Sesión iniciada correctamente', 'success');
     } catch (error) {
         console.error('Error en inicio de sesión:', error);
         showNotification(error.message || 'Error al iniciar sesión', 'error');
     } finally {
-        // Restaurar botón
         submitBtn.disabled = false;
         submitBtn.textContent = originalBtnText;
     }
@@ -236,5 +207,21 @@ document.addEventListener('DOMContentLoaded', () => {
         tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new window.bootstrap.Tooltip(tooltipTriggerEl);
         });
+    }
+});
+
+// --- Delegación de eventos para logout-btn (siempre funciona, incluso con menús dinámicos) ---
+document.body.addEventListener('click', async (e) => {
+    const logoutBtn = e.target.closest('#logout-btn');
+    if (logoutBtn) {
+        console.log('Logout button clicked');
+        try {
+            await logout();
+            showSection('login');
+            showNotification('Sesión cerrada correctamente', 'success');
+        } catch (error) {
+            console.error('Error al cerrar sesión:', error);
+            showNotification('Error al cerrar sesión', 'error');
+        }
     }
 });

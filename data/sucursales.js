@@ -17,13 +17,12 @@ export const sucursales = [
   { id: 'movil-deportiva', nombre: 'Móvil Deportiva', activa: true, modelo: 'Móvil' },
   { id: 'movil-la-venta', nombre: 'Móvil La Venta', activa: true, modelo: 'Móvil' }
 ];
+window.sucursales = sucursales;
 
-// Función para obtener una sucursal por su ID
-export const obtenerSucursalPorId = (id) => {
+export function obtenerSucursalPorId(id) {
   return sucursales.find(sucursal => sucursal.id === id);
-};
+}
 
-// Función para obtener todas las sucursales activas
-export const obtenerSucursalesActivas = () => {
+export function getSucursalesActivas() {
   return sucursales.filter(sucursal => sucursal.activa);
-};
+}

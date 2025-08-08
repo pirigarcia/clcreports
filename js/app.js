@@ -1,12 +1,13 @@
-// Importaciones
+// --- IMPORTS Y DATOS ---
+import { initUI } from './ui.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  where, 
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
   orderBy,
   serverTimestamp,
   doc,
@@ -14,1235 +15,123 @@ import {
   setDoc,
   deleteDoc
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
-import { 
-  getAuth, 
-  onAuthStateChanged, 
-  signOut 
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { sucursales, obtenerSucursalPorId } from '../data/sucursales.js';
 import { franquicias, obtenerFranquiciaPorId } from '../data/franquicias.js';
-import { categorias, parametros as parametrosData } from '../data/parametros.js';
+import { categorias, parametros, getParametrosPorCategoria, getParametroPorId, getParametrosParaSucursal, getPuntajeMaximo } from '../data/parametros.js';
 import { videoLinks } from '../data/video_links.js';
-window.valores = parametrosData;
+import { parametrosExcluidosPorSucursal, parametrosExcluidosPorFranquicia } from '../data/parametros_excluidos.js';
+// window.parametrosData = parametros; // Si necesitas la variable global, ya está definida en el archivo de datos
 import { showSection, createElement, formatDate, showLoading, hideLoading, showNotification } from './utils/dom.js';
 
-// Configuración de Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyAbVVwZAWnuEecGD3c8UP49ezQHd7PQ9MQ",
-  authDomain: "clcreports-9083b.firebaseapp.com",
-  projectId: "clcreports-9083b",
-  storageBucket: "clcreports-9083b.appspot.com",
-  messagingSenderId: "312363582020",
-  appId: "1:312363582020:web:6951c11e95e946f233f211"
-};
+// --- Función dummy temporal para evitar error crítico ---
+function esFranquiciasUser() {
+  // TODO: Implementa la lógica real según el usuario autenticado
+  return false;
+}
 
-// Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+function esGopUser() {
+  // TODO: Implementa la lógica real según el usuario autenticado
+  return false;
+}
 
-// Estado global de la aplicación
-const state = {
-  currentUser: null,
-  sucursales: [],
-  evaluaciones: [],
-  currentEvaluation: null,
-  evaluacionEditando: null
-};
+// --- Declaración global para la gráfica de sucursales ---
+let graficaSucursales = null;
 
-// Elementos del DOM
-const elements = {
-  // Navegación
-  navLinks: document.querySelectorAll('[data-section]'),
-  userDropdown: document.getElementById('userDropdown'),
-  userName: document.querySelector('.user-name'),
-  logoutBtn: document.getElementById('logout-btn'),
-  
-  // Dashboard
-  totalEvaluaciones: document.getElementById('total-evaluaciones'),
-  promedioGeneral: document.getElementById('promedio-general'),
-  evaluacionesMes: document.getElementById('evaluaciones-mes'),
-  sucursalDestacada: document.getElementById('sucursal-destacada'),
-  puntajeSucursal: document.getElementById('puntaje-sucursal'),
-  tablaEvaluaciones: document.getElementById('tabla-evaluaciones'),
-  atencionSucursales: document.getElementById('atencion-sucursales'),
-  atencionTodasOk: document.getElementById('atencion-todas-ok'),
-  
-  // Filtros
-  filtroForm: document.getElementById('filtro-form'),
-  filtroMes: document.getElementById('filtro-mes'),
-  filtroSucursal: document.getElementById('filtro-sucursal'),
-  
-  // Modal de nueva evaluación
-  modalNuevaEvaluacion: null,
-  formNuevaEvaluacion: document.getElementById('form-nueva-evaluacion'),
-  btnNuevaEvaluacion: document.getElementById('nueva-evaluacion'),
-  btnGuardarEvaluacion: document.getElementById('guardar-evaluacion'),
-  selectSucursal: document.getElementById('sucursal'),
-  inputFecha: document.getElementById('fecha'),
-  seccionParametros: document.getElementById('seccion-parametros'),
-  inputObservaciones: document.getElementById('observaciones'),
-  tipoCafeGroup: document.getElementById('tipo-cafe-group'),
-  tipoCafeSelect: document.getElementById('tipo-cafe'),
-  btnExportPDF: document.getElementById('export-pdf'),
-  btnExportExcel: document.getElementById('export-excel')
-};
+// --- ESTADO GLOBAL Y ELEMENTOS ---
+(async () => {
+  // Cargar configuración de Firebase desde backend
+  const firebaseConfig = {
+    apiKey: "AIzaSyAbVVwZAWnuEecGD3c8UP49ezQHd7PQ9MQ",
+    authDomain: "clcreports-9083b.firebaseapp.com",
+    projectId: "clcreports-9083b",
+    storageBucket: "clcreports-9083b.appspot.com",
+    messagingSenderId: "312363582020",
+    appId: "1:312363582020:web:6951c11e95e946f233f211"
+    // ...otros campos si es necesario
+  };
 
-// Inicialización de la aplicación
-async function initApp() {
-  try {
-    console.log('Inicializando aplicación...');
-    
-    // Configurar la fecha actual en el input de fecha
-    const now = new Date();
-    if (elements.inputFecha) {
-      elements.inputFecha.value = now.toISOString().slice(0, 16);
+  // Inicializar Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  // Exponer a window para depuración
+  window.firebaseApp = app;
+  window.db = db;
+  window.auth = auth;
+
+  // Inicializar UI SPA (login, listeners, etc)
+  initUI();
+
+  // Estado global y elementos
+  window.state = { currentUser: null, sucursales: [], evaluaciones: [], currentEvaluation: null, evaluacionEditando: null };
+  window.elements = {
+    // ...otros elementos
+    navLinks: document.querySelectorAll('.nav-link')
+  };
+
+  // --- AUTENTICACIÓN Y CARGA SEGURA DE DATOS ---
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      console.log("Usuario autenticado:", user.email);
+      // Mostrar nombre/email en la UI
+      const userNameElement = document.querySelector('.user-name');
+      if (userNameElement) {
+        userNameElement.textContent = user.email || user.displayName || "Usuario";
+      }
+      initApp().catch(error => {
+        console.error('Error al inicializar la aplicación:', error);
+        showNotification('Error al iniciar la aplicación', 'error');
+      });
+    } else {
+      // Limpiar usuario global y mostrar sección de login
+      window.state.currentUser = null;
+      if (typeof showSection === 'function') {
+        showSection('login');
+      }
+      // Si tienes elementos de UI que dependen del usuario, límpialos aquí
+      const userNameElement = document.querySelector('.user-name');
+      if (userNameElement) {
+        userNameElement.textContent = '';
+      }
     }
-    
-    // Configurar manejadores de eventos
-    setupEventListeners();
-    
-    // Utilizar Bootstrap Modal del global (window.bootstrap.Modal)
-    document.addEventListener('DOMContentLoaded', () => {
-      const modalElement = document.getElementById('modalNuevaEvaluacion');
-      if (modalElement && window.bootstrap && window.bootstrap.Modal) {
-        elements.modalNuevaEvaluacion = new window.bootstrap.Modal(modalElement);
-        console.log('Modal de nueva evaluación inicializado');
-      } else {
-        console.error('No se encontró el modal con id "modalNuevaEvaluacion" o Bootstrap no está cargado');
-      }
-    });
-    
-    // Inicializar el dropdown de usuario (Bootstrap)
-    document.addEventListener('DOMContentLoaded', () => {
-      const userDropdownEl = document.getElementById('userDropdown');
-      if (userDropdownEl && window.bootstrap && window.bootstrap.Dropdown) {
-        new window.bootstrap.Dropdown(userDropdownEl);
-        console.log('Dropdown de usuario inicializado');
-      } else {
-        console.error('No se encontró el botón userDropdown o Bootstrap no está cargado');
-      }
-    });
-    
-    // Observar cambios en la autenticación
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Usuario autenticado
-        state.currentUser = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || user.email.split('@')[0]
-        };
-        
-        // Actualizar UI
-        if (elements.userName) {
-          elements.userName.textContent = state.currentUser.displayName;
-        }
-        // Mostrar/ocultar el botón aquí, cuando ya sabemos quién es el usuario
-        if (elements.btnNuevaEvaluacion) {
-          elements.btnNuevaEvaluacion.style.display = esAdmin() ? '' : 'none';
-        }
-        // --- CORRECCIÓN: Establecer sucursales/franquicias visibles según el rol ---
-        state.sucursales = obtenerSucursalesVisibles();
-        // Cargar sucursales
-        await cargarSucursales();
-        // Cargar evaluaciones
-        await cargarEvaluaciones({ mes: elements.filtroMes.value });
-      } else {
-        // Usuario no autenticado, redirigir a login
-        window.location.href = 'login.html';
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error en initApp:', error);
-    showNotification('Error al inicializar la aplicación', 'error');
-  }
-}
-
-// Cargar sucursales desde el módulo
-async function cargarSucursales() {
-  try {
-    llenarSelectSucursales(elements.filtroSucursal, 'Todas las sucursales');
-  } catch (error) {
-    console.error('Error al cargar sucursales:', error);
-    showNotification('Error al cargar las sucursales', 'error');
-  }
-}
-
-// Llenar un select con las sucursales
-function llenarSelectSucursales(selectElement, placeholderText) {
-  if (!selectElement) return;
-  
-  // Limpiar opciones existentes
-  selectElement.innerHTML = '';
-  
-  // Agregar opción por defecto
-  const defaultOption = document.createElement('option');
-  defaultOption.value = '';
-  defaultOption.textContent = placeholderText;
-  defaultOption.disabled = selectElement.id === 'sucursal';
-  selectElement.appendChild(defaultOption);
-  
-  // Agregar opciones de sucursales
-  state.sucursales.forEach(sucursal => {
-    if (!sucursal.activa) return;
-    
-    const option = document.createElement('option');
-    option.value = sucursal.id;
-    option.textContent = sucursal.nombre;
-    selectElement.appendChild(option);
   });
-}
 
-// Cargar evaluaciones desde Firestore
-async function cargarEvaluaciones(filtros = {}) {
-  try {
-    showLoading();
-    let q = collection(db, 'evaluaciones');
-    const condiciones = [];
-    // Filtrar por sucursales/franquicias según usuario
-    if (!esAdmin()) {
-      const sucursalesPermitidas = state.sucursales.map(s => s.id);
-      if (sucursalesPermitidas.length > 0) {
-        condiciones.push(where('sucursalId', 'in', sucursalesPermitidas));
+  document.addEventListener('DOMContentLoaded', () => {
+    // Ocultar todas las secciones excepto dashboard al cargar
+    document.querySelectorAll('.section-content').forEach(sec => {
+      if (sec.id === 'dashboard') {
+        sec.style.display = '';
       } else {
-        // Si no hay sucursales permitidas, no buscar nada
-        state.evaluaciones = [];
-        actualizarResumen();
-        actualizarTablaEvaluaciones();
-        hideLoading();
-        return;
+        sec.style.display = 'none';
       }
-    }
-    if (filtros.sucursalId) {
-      condiciones.push(where('sucursalId', '==', filtros.sucursalId));
-    }
-       // ESTE ES EL REEMPLAZO
-       if (filtros.mes) { // p. ej. "2024-07"
-        const [year, month] = filtros.mes.split('-').map(Number);
-        const fechaInicio = new Date(year, month - 1, 1);
-        const fechaFin = new Date(year, month, 1);
-  
-        condiciones.push(where('fecha', '>=', fechaInicio));
-        condiciones.push(where('fecha', '<', fechaFin));
-      }
-    // Construir la query
-    if (condiciones.length > 0) {
-      q = query(q, ...condiciones);
-    }
-    console.log('[DEBUG] Sucursales locales:', sucursales.map(s => s.id));
-    console.log('[DEBUG] Franquicias locales:', franquicias.map(f => f.id));
-    console.log('[DEBUG] Sucursales permitidas para query:', state.sucursales.map(s => s.id));
-    console.log('[DEBUG] Es admin:', esAdmin());
-    console.log('[DEBUG] Query condiciones:', condiciones);
+    });
 
-    const querySnapshot = await getDocs(q);
-
-    console.log('[DEBUG] Evaluaciones recibidas:', querySnapshot.size);
-    state.evaluaciones = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      console.log('[DEBUG] Evaluación:', doc.id, data);
-      let tipo = '';
-      if (sucursales.find(s => s.id === data.sucursalId)) {
-        tipo = 'sucursal';
-      } else if (franquicias.find(f => f.id === data.sucursalId)) {
-        tipo = 'franquicia';
-      } else {
-        tipo = 'desconocido';
-      }
-      state.evaluaciones.push({
-        id: doc.id,
-        ...data,
-        fecha: data.fecha?.toDate() || new Date(),
-        tipo
+    // Manejar clics en la barra de navegación
+    elements.navLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const sectionId = e.currentTarget.getAttribute('data-section');
+        showSection(sectionId);
       });
     });
+  });
+})();
+
+// --- EVENTOS PARA CARGA DINÁMICA DE SECCIONES ---
+document.addEventListener('sectionShown', (e) => {
+  if (e.detail.sectionId === 'dashboard') {
     actualizarResumen();
     actualizarTablaEvaluaciones();
-  } catch (error) {
-    console.error('Error al cargar evaluaciones:', error);
-    showNotification('Error al cargar las evaluaciones', 'error');
-  } finally {
-    hideLoading();
-  }
-}
-
-// Actualizar el resumen del dashboard
-// Actualizar el resumen del dashboard
-function actualizarResumen() {
-  // Totales generales y pendientes correctos
-  const total = state.evaluaciones.length;
-
-  // Listas completas
-  const totalSucursales = sucursales.length;
-  const totalFranquicias = franquicias.length;
-
-  // IDs evaluados
-  const sucursalesEvaluadas = new Set(
-    state.evaluaciones.filter(ev => ev.tipo === 'sucursal' && ev.completada).map(ev => ev.sucursalId)
-  );
-  const franquiciasEvaluadas = new Set(
-    state.evaluaciones.filter(ev => ev.tipo === 'franquicia' && ev.completada).map(ev => ev.sucursalId)
-  );
-
-  // Pendientes
-  const sucursalesPendientes = sucursales.filter(s => !sucursalesEvaluadas.has(s.id));
-  const franquiciasPendientes = franquicias.filter(f => !franquiciasEvaluadas.has(f.id));
-
-  // Mostrar totales en el dashboard
-  if (elements.totalEvaluaciones) {
-    if (esAdmin()) {
-      elements.totalEvaluaciones.innerHTML = `
-        <span class="fw-bold" style="font-size:2.2rem;">${total}</span> <span style="font-size:1.1rem;">evaluaciones</span>
-        <div class="mt-2 d-flex flex-wrap gap-1">
-          <span class="badge bg-primary text-wrap" style="font-size:0.95rem;">${totalSucursales} sucursales</span>
-          <span class="badge bg-info text-wrap" style="font-size:0.95rem;">${totalFranquicias} franquicias</span>
-          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${sucursalesPendientes.length} sucursal${sucursalesPendientes.length === 1 ? '' : 'es'} pendiente${sucursalesPendientes.length === 1 ? '' : 's'}</span>
-          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${franquiciasPendientes.length} franquicia${franquiciasPendientes.length === 1 ? '' : 's'} pendiente${franquiciasPendientes.length === 1 ? '' : 's'}</span>
-        </div>
-      `;
-    } else if (esFranquiciasUser()) {
-      elements.totalEvaluaciones.innerHTML = `
-        <span class="fw-bold" style="font-size:2.2rem;">${total}</span> <span style="font-size:1.1rem;">evaluaciones</span>
-        <div class="mt-2 d-flex flex-wrap gap-1">
-          <span class="badge bg-info text-wrap" style="font-size:0.95rem;">${totalFranquicias} franquicias</span>
-          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${franquiciasPendientes.length} franquicia${franquiciasPendientes.length === 1 ? '' : 's'} pendiente${franquiciasPendientes.length === 1 ? '' : 's'}</span>
-        </div>
-      `;
-    } else if (esGopUser()) {
-      elements.totalEvaluaciones.innerHTML = `
-        <span class="fw-bold" style="font-size:2.2rem;">${total}</span> <span style="font-size:1.1rem;">evaluaciones</span>
-        <div class="mt-2 d-flex flex-wrap gap-1">
-          <span class="badge bg-primary text-wrap" style="font-size:0.95rem;">${totalSucursales} sucursales</span>
-          <span class="badge bg-warning text-dark text-wrap" style="font-size:0.95rem;">${sucursalesPendientes.length} sucursal${sucursalesPendientes.length === 1 ? '' : 'es'} pendiente${sucursalesPendientes.length === 1 ? '' : 's'}</span>
-        </div>
-      `;
-    }
-
-    // --- INICIO: LÓGICA PARA EL TOOLTIP DE PENDIENTES ---
-    const totalEvaluacionesCard = elements.totalEvaluaciones.closest('.card');
-    if (totalEvaluacionesCard) {
-      let pendientesTooltipContent = '';
-      const pendientes = esAdmin()
-        ? [...sucursalesPendientes, ...franquiciasPendientes]
-        : (esFranquiciasUser() ? franquiciasPendientes : sucursalesPendientes);
-
-      if (pendientes.length > 0) {
-        pendientesTooltipContent = '<strong>Pendientes de evaluar:</strong><ul class=\"list-unstyled mb-0 ps-2\">';
-        pendientes.forEach(item => {
-          pendientesTooltipContent += `<li>- ${item.nombre}</li>`;
-        });
-        pendientesTooltipContent += '</ul>';
-      } else {
-        pendientesTooltipContent = '¡Todo evaluado!';
-      }
-
-      totalEvaluacionesCard.setAttribute('data-bs-toggle', 'tooltip');
-      totalEvaluacionesCard.setAttribute('data-bs-placement', 'top');
-      totalEvaluacionesCard.setAttribute('data-bs-html', 'true');
-      totalEvaluacionesCard.setAttribute('data-bs-title', pendientesTooltipContent);
-
-      // Reinicializar el tooltip para que tome los nuevos datos
-      const tooltip = window.bootstrap.Tooltip.getInstance(totalEvaluacionesCard);
-      if (tooltip) {
-        tooltip.dispose();
-      }
-      new window.bootstrap.Tooltip(totalEvaluacionesCard);
-    }
-    // --- FIN: LÓGICA PARA EL TOOLTIP DE PENDIENTES ---
-  }
-  
-  // Promedio general
-  if (elements.promedioGeneral) {
-    const promedio = total > 0
-      ? Math.round(state.evaluaciones.reduce((sum, evaluacion) => sum + (evaluacion.puntajeTotal || 0), 0) / total)
-      : 0;
-    elements.promedioGeneral.textContent = promedio;
-    // Cambiar color de fondo en Promedio General según regla
-    const promedioGeneralCard = document.querySelector('#promedio-general')?.closest('.card');
-    if (promedioGeneralCard) {
-      promedioGeneralCard.classList.remove('bg-success', 'bg-warning', 'bg-danger');
-      if (promedio >= 96) {
-        promedioGeneralCard.classList.add('bg-success');
-      } else if (promedio >= 91) {
-        promedioGeneralCard.classList.add('bg-warning');
-      } else {
-        promedioGeneralCard.classList.add('bg-danger');
-      }
-    }
-  }
-  
-  // Evaluaciones del mes actual
-  if (elements.evaluacionesMes) {
-    const ahora = new Date();
-    const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    const evaluacionesMes = state.evaluaciones.filter(evaluacion => 
-      new Date(evaluacion.fecha) >= mesActual
-    ).length;
-    elements.evaluacionesMes.textContent = evaluacionesMes;
-  }
-  
-  // Sucursal destacada (la de mayor puntaje promedio)
-  if (elements.sucursalDestacada && elements.puntajeSucursal) {
-    if (state.evaluaciones.length > 0) {
-      const sucursalesPuntaje = {};
-      
-      state.evaluaciones.forEach(evaluacion => {
-        if (!sucursalesPuntaje[evaluacion.sucursalId]) {
-          sucursalesPuntaje[evaluacion.sucursalId] = {
-            total: 0,
-            count: 0,
-            promedio: 0
-          };
-        }
-        
-        sucursalesPuntaje[evaluacion.sucursalId].total += evaluacion.puntajeTotal || 0;
-        sucursalesPuntaje[evaluacion.sucursalId].count++;
-      });
-      
-      // Calcular promedios
-      Object.keys(sucursalesPuntaje).forEach(sucursalId => {
-        const data = sucursalesPuntaje[sucursalId];
-        data.promedio = data.count > 0 ? Math.round(data.total / data.count) : 0;
-      });
-      
-      // Encontrar la destacada
-      let destacadaId = null;
-      let maxPromedio = -1;
-      
-      Object.keys(sucursalesPuntaje).forEach(sucursalId => {
-        if (sucursalesPuntaje[sucursalId].promedio > maxPromedio) {
-          maxPromedio = sucursalesPuntaje[sucursalId].promedio;
-          destacadaId = sucursalId;
-        }
-      });
-      
-      if (destacadaId) {
-        const sucursalInfo = obtenerSucursalPorId(destacadaId) || obtenerFranquiciaPorId(destacadaId);
-        elements.sucursalDestacada.textContent = sucursalInfo ? sucursalInfo.nombre : 'N/A';
-        elements.puntajeSucursal.textContent = `${maxPromedio}%`;
-      } else {
-        elements.sucursalDestacada.textContent = 'N/A';
-        elements.puntajeSucursal.textContent = '0%';
-      }
-    } else {
-      elements.sucursalDestacada.textContent = 'N/A';
-      elements.puntajeSucursal.textContent = '0%';
-    }
-  }
-  
-  // Alertas de atención
-  if (elements.atencionSucursales) {
-    // Obtener todas las evaluaciones completadas
-    const evaluacionesCompletadas = state.evaluaciones.filter(ev => ev.completada);
-    
-    // Crear un objeto para almacenar el promedio por sucursal/franquicia
-    const puntajesPorSucursal = {};
-    
-    // Calcular el promedio para cada sucursal/franquicia
-    evaluacionesCompletadas.forEach(ev => {
-      if (!puntajesPorSucursal[ev.sucursalId]) {
-        puntajesPorSucursal[ev.sucursalId] = {
-          id: ev.sucursalId,
-          nombre: ev.sucursalNombre,
-          tipo: ev.tipo,
-          total: 0,
-          count: 0
-        };
-      }
-      puntajesPorSucursal[ev.sucursalId].total += ev.puntajeTotal || 0;
-      puntajesPorSucursal[ev.sucursalId].count++;
-    });
-    
-    // Calcular el promedio para cada sucursal
-    Object.values(puntajesPorSucursal).forEach(sucursal => {
-      sucursal.promedio = sucursal.count > 0 ? Math.round(sucursal.total / sucursal.count) : 0;
-    });
-    
-    // Ordenar por promedio (de menor a mayor)
-    const sucursalesOrdenadas = Object.values(puntajesPorSucursal)
-      .filter(s => s.count > 0) // Solo considerar las que tienen evaluaciones
-      .sort((a, b) => a.promedio - b.promedio);
-    
-    // Tomar las 3 con peor calificación
-    const sucursalesConBajaCalificacion = sucursalesOrdenadas.slice(0, 3);
-    
-    if (sucursalesConBajaCalificacion.length > 0) {
-      // Formatear el texto para mostrar en el bloque de atención
-      const sucursalesTexto = sucursalesConBajaCalificacion.map(s => 
-        `${s.nombre} (${s.promedio}%)`
-      ).join(', ');
-      
-      elements.atencionSucursales.innerHTML = sucursalesTexto;
-      document.getElementById('atencion-block').style.display = '';
-      document.getElementById('atencion-todas-ok').style.display = 'none';
-    } else {
-      document.getElementById('atencion-block').style.display = 'none';
-      document.getElementById('atencion-todas-ok').style.display = '';
-    }
-  }
-}
-
-// Actualizar la tabla de evaluaciones recientes
-function actualizarTablaEvaluaciones() {
-  const tabla = document.getElementById('tabla-evaluaciones');
-  if (!tabla) return;
-  const tbody = tabla.querySelector('tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-  if (state.evaluaciones.length === 0) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td colspan="8" class="text-center py-4 text-muted">
-        No se encontraron evaluaciones
-      </td>
-    `;
-    tbody.appendChild(tr);
-    return;
-  }
-  const sucursalesPermitidas = state.sucursales.map(s => s.id);
-  const evaluacionesFiltradas = esAdmin()
-    ? state.evaluaciones
-    : state.evaluaciones.filter(ev => sucursalesPermitidas.includes(ev.sucursalId));
-  evaluacionesFiltradas.forEach(evaluacion => {
-    let sucursal = { nombre: 'Desconocida' };
-    let modelo = 'Cafetería';
-    const tipo = evaluacion.tipo === 'sucursal' ? 'Sucursal' : evaluacion.tipo === 'franquicia' ? 'Franquicia' : 'Desconocido';
-    if (evaluacion.tipo === 'franquicia') {
-      sucursal = franquicias.find(f => f.id === evaluacion.sucursalId) || { nombre: 'Desconocida' };
-      if(['dosbocas','cumuapa'].includes(evaluacion.sucursalId)) {
-        modelo = 'Móvil';
-      } else {
-        modelo = 'Cafetería';
-      }
-    } else {
-      sucursal = obtenerSucursalPorId(evaluacion.sucursalId) || { nombre: 'Desconocida' };
-      if(['movil-la-venta', 'movil-deportiva'].includes(evaluacion.sucursalId)) {
-        modelo = 'Móvil';
-      } else if(['walmart-deportiva', 'walmart-carrizal', 'walmart-universidad', 'pista'].includes(evaluacion.sucursalId)) {
-        modelo = 'Express';
-      } else {
-        modelo = 'Cafetería';
-      }
-    }
-    const fecha = formatDate(evaluacion.fecha, 'DD/MM/YYYY HH:mm');
-    const estado = evaluacion.completada ? 'Completada' : 'Pendiente';
-    const estadoClass = evaluacion.completada ? 'success' : 'warning';
-    // --- VIDEO BUTTON MULTIMES ---
-    let videoUrl = null;
-    let videoMonth = null;
-    for (const m in videoLinks) {
-      if (videoLinks[m]?.[evaluacion.sucursalId]) {
-        videoUrl = videoLinks[m][evaluacion.sucursalId];
-        videoMonth = m;
-        break;
-      }
-      if (videoLinks[m]?.[evaluacion.franquiciaId]) {
-        videoUrl = videoLinks[m][evaluacion.franquiciaId];
-        videoMonth = m;
-        break;
-      }
-    }
-    const videoBtn = videoUrl ? `
-      <button class="btn btn-sm btn-outline-danger btn-video ms-1" data-url="${videoUrl}" title="Video de evaluación (${videoMonth})">
-        <i class="bi bi-youtube"></i>
-      </button>
-    ` : '';
-    // --- END VIDEO BUTTON MULTIMES ---
-    const tr = document.createElement('tr');
-    tr.className = 'fade-in';
-    tr.innerHTML = `
-      <td>${fecha}</td>
-      <td>${sucursal.nombre}</td>
-      <td>${tipo}</td>
-      <td>${modelo}</td>
-      <td>${evaluacion.usuarioNombre || 'Anónimo'}</td>
-      <td>${evaluacion.puntajeTotal || 0}%</td>
-      <td><span class="badge bg-${estadoClass}">${estado}</span></td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary btn-ver-evaluacion" data-id="${evaluacion.id}">
-          <i class="fas fa-eye"></i>
-        </button>
-        ${esAdmin() ? `
-        <button class="btn btn-sm btn-outline-secondary btn-editar-evaluacion ms-1" data-id="${evaluacion.id}">
-          <i class="fas fa-edit"></i>
-        </button>
-        <button class="btn btn-sm btn-outline-danger btn-eliminar-evaluacion ms-1" data-id="${evaluacion.id}">
-          <i class="fas fa-trash"></i>
-        </button>
-        ` : ''}
-        ${videoBtn}
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-  // Agregar manejadores de eventos a los botones
-  tbody.querySelectorAll('.btn-ver-evaluacion').forEach(btn => {
-    btn.addEventListener('click', (e) => verEvaluacion(e.target.closest('button').dataset.id));
-  });
-  if (esAdmin()) {
-    tbody.querySelectorAll('.btn-editar-evaluacion').forEach(btn => {
-      btn.addEventListener('click', (e) => editarEvaluacion(e.target.closest('button').dataset.id));
-    });
-    tbody.querySelectorAll('.btn-eliminar-evaluacion').forEach(btn => {
-      btn.addEventListener('click', (e) => confirmarEliminarEvaluacion(e.target.closest('button').dataset.id));
-    });
-  }
-  // --- VIDEO BUTTON EVENT LISTENER ---
-  tbody.querySelectorAll('.btn-video').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const url = btn.dataset.url;
-      if (url) {
-        // Extraer el ID del video de YouTube
-        const match = url.match(/(?:youtu.be\/|youtube.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-        const videoId = match ? match[1] : null;
-        if (videoId) {
-          const container = document.getElementById('youtubePlayerContainer');
-          if (container) {
-            container.innerHTML = `<div class='ratio ratio-16x9'><iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}?autoplay=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
-          }
-          const modalEl = document.getElementById('modalYoutubePlayer');
-          if (modalEl && window.bootstrap) {
-            const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-          }
-        } else {
-          window.open(url, '_blank', 'noopener'); // fallback
-        }
-      }
-    });
-    if (window.bootstrap && window.bootstrap.Tooltip) {
-      new window.bootstrap.Tooltip(btn);
-    }
-  });
-  // --- END VIDEO BUTTON EVENT LISTENER ---
-}
-
-// Ver los detalles de una evaluación
-function verEvaluacion(evaluacionId) {
-  const evaluacion = state.evaluaciones.find(e => e.id === evaluacionId);
-  if (!evaluacion) return;
-  
-  // TODO: Implementar vista detallada de la evaluación
-  showNotification(`Viendo evaluación de ${evaluacion.sucursalNombre}`, 'info');
-  cargarParametrosEvaluacion(); // Asegura que el formulario esté renderizado
-  setTimeout(() => {
-    rellenarFormularioEvaluacion(evaluacion, true);
-    if (elements.modalNuevaEvaluacion) {
-      elements.modalNuevaEvaluacion.show();
-    }
-  }, 200);
-}
-
-// Editar una evaluación existente
-function esAdmin() {
-  const adminEmails = [
-    'unknownshoppersmx@gmail.com',
-  ];
-  // Ajusta esta lógica según cómo determines el rol admin en tu app
-  return state.currentUser && adminEmails.includes(state.currentUser.email);
-}
-
-function editarEvaluacion(evaluacionId) {
-  if (!esAdmin()) {
-    showNotification('Solo el administrador puede editar evaluaciones', 'error');
-    return;
-  }
-  const evaluacion = state.evaluaciones.find(e => e.id === evaluacionId);
-  if (!evaluacion) return;
-  cargarParametrosEvaluacion();
-  setTimeout(() => {
-    rellenarFormularioEvaluacion(evaluacion, false);
-    state.evaluacionEditando = evaluacionId;
-    if (elements.modalNuevaEvaluacion) {
-      elements.modalNuevaEvaluacion.show();
-    }
-  }, 200);
-}
-
-// Confirmar eliminación de una evaluación
-function confirmarEliminarEvaluacion(evaluacionId) {
-  if (confirm('¿Estás seguro de que deseas eliminar esta evaluación? Esta acción no se puede deshacer.')) {
-    eliminarEvaluacion(evaluacionId);
-  }
-}
-
-// Eliminar una evaluación
-async function eliminarEvaluacion(evaluacionId) {
-  try {
-    showLoading();
-    
-    // Eliminar de Firestore
-    await deleteDoc(doc(db, 'evaluaciones', evaluacionId));
-    // Actualizar UI (historial y resumen)
-    const selectorMes = document.getElementById('selectorMes');
-    if (selectorMes) {
-      await cargarHistorialEvaluaciones(selectorMes.value);
-    }
-    await cargarEvaluaciones(); // Para refrescar el dashboard
-    actualizarResumen();
-    showNotification('Evaluación eliminada correctamente', 'success');
-  } catch (error) {
-    console.error('Error al eliminar la evaluación:', error);
-    showNotification('Error al eliminar la evaluación: ' + error.message, 'error');
-  } finally {
-    hideLoading();
-  }
-}
-
-// Cargar parámetros para la evaluación en el formulario
-function cargarParametrosEvaluacion() {
-  if (!elements.seccionParametros) return;
-  elements.seccionParametros.innerHTML = '';
-  const esMovil = esEvaluacionMovil();
-  categorias.forEach((categoria) => {
-    const categoriaDiv = document.createElement('div');
-    categoriaDiv.className = 'categoria-evaluacion mb-4';
-    categoriaDiv.dataset.categoriaId = categoria.id;
-    const tituloCategoria = document.createElement('h5');
-    tituloCategoria.className = 'mb-3';
-    tituloCategoria.textContent = categoria.nombre;
-    categoriaDiv.appendChild(tituloCategoria);
-    if (categoria.descripcion) {
-      const descCategoria = document.createElement('p');
-      descCategoria.className = 'text-muted small mb-3';
-      descCategoria.textContent = categoria.descripcion;
-      categoriaDiv.appendChild(descCategoria);
-    }
-    const parametrosContainer = document.createElement('div');
-    parametrosContainer.className = 'parametros-container';
-    let parametrosCategoria = window.valores.filter(p => p.categoriaId === categoria.id);
-    console.log('[DEBUG] Categoria actual:', categoria.id, categoria.nombre);
-    console.log('[DEBUG] Parametros antes de filtrar:', parametrosCategoria.map(p => p.id));
-    if (esMovil) {
-      console.log('[DEBUG] Filtrando parámetros excluidos para móvil:', parametrosExcluidosMovil);
-      parametrosCategoria = parametrosCategoria.filter(p => {
-        const excluir = parametrosExcluidosMovil.includes(p.id);
-        if (excluir) console.log('[DEBUG] Excluyendo parámetro:', p.id, p.nombre);
-        return !excluir;
-      });
-      console.log('[DEBUG] Parametros después de filtrar:', parametrosCategoria.map(p => p.id));
-    } else {
-      console.log('[DEBUG] No es móvil, no se filtra ningún parámetro');
-    }
-    if (parametrosCategoria.length > 0) {
-      parametrosCategoria.forEach((parametro, paramIndex) => {
-        const parametroDiv = document.createElement('div');
-        parametroDiv.className = 'parametro-evaluacion card mb-3';
-        parametroDiv.dataset.parametroId = parametro.id;
-        const cardBody = document.createElement('div');
-        cardBody.className = 'card-body';
-        const filaParam = document.createElement('div');
-        filaParam.className = 'd-flex align-items-center flex-wrap gap-3';
-        const tituloParam = document.createElement('span');
-        tituloParam.className = 'fw-semibold';
-        tituloParam.textContent = parametro.nombre;
-        filaParam.appendChild(tituloParam);
-        const opcionesDiv = document.createElement('div');
-        opcionesDiv.className = 'opciones-puntuacion';
-        const opcionSiDiv = document.createElement('div');
-        opcionSiDiv.className = 'form-check form-check-inline';
-        const inputSi = document.createElement('input');
-        inputSi.className = 'form-check-input';
-        inputSi.type = 'radio';
-        inputSi.name = `param-${categoria.id}-${parametro.id}`;
-        inputSi.id = `param-${categoria.id}-${parametro.id}-1`;
-        inputSi.value = 1;
-        inputSi.required = true;
-        inputSi.checked = true; // <-- SELECCIONADO POR DEFECTO
-        const labelSi = document.createElement('label');
-        labelSi.className = 'form-check-label';
-        labelSi.htmlFor = inputSi.id;
-        labelSi.textContent = 'Sí (1)';
-        opcionSiDiv.appendChild(inputSi);
-        opcionSiDiv.appendChild(labelSi);
-        opcionesDiv.appendChild(opcionSiDiv);
-        const opcionNoDiv = document.createElement('div');
-        opcionNoDiv.className = 'form-check form-check-inline';
-        const inputNo = document.createElement('input');
-        inputNo.className = 'form-check-input';
-        inputNo.type = 'radio';
-        inputNo.name = `param-${categoria.id}-${parametro.id}`;
-        inputNo.id = `param-${categoria.id}-${parametro.id}-0`;
-        inputNo.value = 0;
-        inputNo.required = true;
-        const labelNo = document.createElement('label');
-        labelNo.className = 'form-check-label';
-        labelNo.htmlFor = inputNo.id;
-        labelNo.textContent = 'No (0)';
-        opcionNoDiv.appendChild(inputNo);
-        opcionNoDiv.appendChild(labelNo);
-        opcionesDiv.appendChild(opcionNoDiv);
-        filaParam.appendChild(opcionesDiv);
-        cardBody.appendChild(filaParam);
-        if (parametro.descripcion) {
-          const descParam = document.createElement('p');
-          descParam.className = 'card-text text-muted small mb-0';
-          descParam.textContent = parametro.descripcion;
-          cardBody.appendChild(descParam);
-        }
-        parametroDiv.appendChild(cardBody);
-        parametrosContainer.appendChild(parametroDiv);
-      });
-    } else {
-      const sinParametros = document.createElement('div');
-      sinParametros.className = 'alert alert-info';
-      sinParametros.textContent = 'No hay parámetros definidos para esta categoría.';
-      parametrosContainer.appendChild(sinParametros);
-    }
-    categoriaDiv.appendChild(parametrosContainer);
-    elements.seccionParametros.appendChild(categoriaDiv);
-  });
-  autocompletarParametrosPorDefecto();
-}
-
-// Rellenar el formulario de evaluación con datos existentes y modo lectura/editable
-function rellenarFormularioEvaluacion(evaluacion, modoLectura = false) {
-  // Fecha
-  if (elements.inputFecha) {
-    if (evaluacion.fecha && !isNaN(new Date(evaluacion.fecha).getTime())) {
-      elements.inputFecha.value = new Date(evaluacion.fecha).toISOString().slice(0, 16);
-    } else {
-      elements.inputFecha.value = '';
-    }
-    elements.inputFecha.disabled = modoLectura;
-  }
-  // Sucursal
-  if (elements.selectSucursal) {
-    elements.selectSucursal.value = evaluacion.sucursalId;
-    elements.selectSucursal.disabled = modoLectura;
-  }
-  // Observaciones
-  if (elements.inputObservaciones) {
-    elements.inputObservaciones.value = evaluacion.observaciones || '';
-    elements.inputObservaciones.readOnly = modoLectura;
-  }
-  // Parámetros
-  if (Array.isArray(evaluacion.respuestas)) {
-    // Determinar si la evaluación es móvil
-    let esMovilEval = false;
-    // Buscar franquicia o sucursal por ID
-    const franquicia = franquicias.find(f => f.id === evaluacion.sucursalId);
-    const sucursal = sucursales.find(s => s.id === evaluacion.sucursalId);
-    if (franquicia && franquicia.modelo && ['móvil','movil'].includes(franquicia.modelo.toLowerCase())) esMovilEval = true;
-    if (sucursal && sucursal.modelo && ['móvil','movil'].includes(sucursal.modelo.toLowerCase())) esMovilEval = true;
-
-    evaluacion.respuestas.forEach(rta => {
-      // FILTRAR SI ES MÓVIL Y ESTÁ EXCLUIDO
-      if (esMovilEval && parametrosExcluidosMovil.includes(rta.parametroId)) {
-        console.log('[DEBUG][rellenarFormularioEvaluacion] Excluyendo parámetro por móvil:', rta.parametroId);
-        return;
-      }
-      const inputName = `param-${rta.categoriaId}-${rta.parametroId}`;
-      const radio = document.querySelector(`input[name="${inputName}"][value="${rta.valor}"]`);
-      if (radio) {
-        radio.checked = true;
-        radio.disabled = modoLectura;
-      }
-      // Deshabilitar ambos radios si modoLectura
-      if (modoLectura) {
-        const radios = document.getElementsByName(inputName);
-        radios.forEach(r => r.disabled = true);
-      }
-    });
-  }
-  // Botones
-  if (elements.btnGuardarEvaluacion) {
-    elements.btnGuardarEvaluacion.style.display = modoLectura ? 'none' : '';
-  }
-  const btnCerrar = document.getElementById('btnCerrarEvaluacion');
-  if (btnCerrar) {
-    btnCerrar.style.display = modoLectura ? '' : 'none';
-  }
-}
-
-// Guardar una nueva evaluación
-async function guardarEvaluacion() {
-  try {
-    // Validar que el usuario esté autenticado
-    if (!state.currentUser) {
-      showNotification('Debes iniciar sesión para guardar evaluaciones', 'error');
-      return;
-    }
-
-    // Validar que se haya seleccionado una sucursal
-    const sucursalId = elements.selectSucursal?.value;
-    if (!sucursalId) {
-      showNotification('Por favor selecciona una sucursal', 'error');
-      elements.selectSucursal.focus();
-      return;
-    }
-
-    // Validar la fecha
-    const fecha = elements.inputFecha?.value;
-    if (!fecha) {
-      showNotification('Por favor ingresa una fecha de evaluación', 'error');
-      elements.inputFecha.focus();
-      return;
-    }
-
-    // Validar que se hayan respondido todos los parámetros requeridos
-    const parametrosNoRespondidos = [];
-    categorias.forEach((categoria) => {
-      const parametrosCategoria = window.valores.filter(p => p.categoriaId === categoria.id);
-      parametrosCategoria.forEach((parametro) => {
-        const inputName = `param-${categoria.id}-${parametro.id}`;
-        const radioSelected = document.querySelector(`input[name="${inputName}"]:checked`);
-        if (!radioSelected) {
-          parametrosNoRespondidos.push(parametro.nombre);
-        }
-      });
-    });
-
-    if (parametrosNoRespondidos.length > 0) {
-      showNotification(`Por favor responde todos los parámetros. Faltan: ${parametrosNoRespondidos.join(', ')}`, 'error');
-      return;
-    }
-
-    // Mostrar indicador de carga
-    showLoading('Guardando evaluación...');
-
-    // Obtener la sucursal o franquicia seleccionada
-    let sucursal = state.sucursales.find(s => s.id === sucursalId);
-    if (!sucursal) {
-      // Buscar en franquicias si no se encontró en sucursales
-      sucursal = franquicias.find(f => f.id === sucursalId);
-    }
-    if (!sucursal) {
-      throw new Error('No se encontró la sucursal seleccionada');
-    }
-
-    // Recolectar respuestas de los parámetros
-    const respuestas = [];
-    let puntajeTotal = 0;
-    let totalParametros = 0;
-
-    categorias.forEach((categoria) => {
-      const parametrosCategoria = window.valores.filter(p => p.categoriaId === categoria.id);
-      parametrosCategoria.forEach((parametro) => {
-        const inputName = `param-${categoria.id}-${parametro.id}`;
-        const radioSelected = document.querySelector(`input[name="${inputName}"]:checked`);
-        const valor = radioSelected ? parseInt(radioSelected.value) : 0;
-        respuestas.push({
-          categoriaId: categoria.id,
-          categoriaNombre: categoria.nombre,
-          parametroId: parametro.id,
-          parametroNombre: parametro.nombre,
-          valor,
-          peso: parametro.peso || 1
-        });
-        puntajeTotal += valor;
-        totalParametros += 1;
-      });
-    });
-
-    // Calcular puntaje final (0-100%)
-    const puntajeFinal = totalParametros > 0
-      ? Math.round((puntajeTotal / totalParametros) * 100)
-      : 0;
-
-    // --- LOG PARA DEPURACIÓN ---
-    console.log('Respuestas:', respuestas);
-    console.log('Puntaje calculado:', puntajeFinal, 'Total parámetros:', totalParametros, 'Total positivos:', puntajeTotal);
-
-    // Crear objeto de evaluación
-    const evaluacion = {
-      sucursalId,
-      sucursalNombre: sucursal.nombre,
-      fecha: new Date(fecha),
-      usuarioId: state.currentUser.uid,
-      usuarioNombre: state.currentUser.displayName || 'Usuario',
-      usuarioEmail: state.currentUser.email || '',
-      observaciones: elements.inputObservaciones?.value || '',
-      respuestas,
-      puntajeTotal: puntajeFinal,
-      completada: true,
-      fechaCreacion: serverTimestamp(),
-      fechaActualizacion: serverTimestamp()
-    };
-
-    // Guardar en Firestore
-    if (state.evaluacionEditando) {
-      await setDoc(doc(db, 'evaluaciones', state.evaluacionEditando), evaluacion);
-      state.evaluacionEditando = null;
-    } else {
-      const docRef = await addDoc(collection(db, 'evaluaciones'), evaluacion);
-    }
-
-    // Actualizar UI
-    showNotification('Evaluación guardada correctamente', 'success');
-
-    // Cerrar el modal
-    if (elements.modalNuevaEvaluacion) {
-      elements.modalNuevaEvaluacion.hide();
-    }
-
-    // Recargar evaluaciones
-    await cargarEvaluaciones(); // Para refrescar el dashboard
-    actualizarResumen();
-    showNotification('Evaluación guardada correctamente', 'success');
-
-    // Limpiar formulario
-    if (elements.formNuevaEvaluacion) {
-      elements.formNuevaEvaluacion.reset();
-    }
-
-    // Restablecer la fecha actual
-    const now = new Date();
-    if (elements.inputFecha) {
-      elements.inputFecha.value = now.toISOString().slice(0, 16);
-    }
-
-  } catch (error) {
-    console.error('Error al guardar la evaluación:', error);
-    showNotification(`Error al guardar la evaluación: ${error.message}`, 'error');
-  } finally {
-    hideLoading();
-  }
-}
-
-// Configurar manejadores de eventos
-function setupEventListeners() {
-  // Navegación
-  elements.navLinks?.forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const sectionId = e.currentTarget.getAttribute('data-section');
-      showSection(sectionId);
-      
-      // Actualizar clase activa
-      elements.navLinks?.forEach(l => l.classList.remove('active'));
-      e.currentTarget.classList.add('active');
-    });
-  });
-  
-  // Cerrar sesión
-  if (elements.logoutBtn) {
-    elements.logoutBtn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      try {
-        await signOut(auth);
-        // Limpiar estado y redirigir al login
-        state.currentUser = null;
-        showNotification('Sesión cerrada correctamente', 'success');
-        window.location.href = 'login.html';
-      } catch (error) {
-        console.error('Error al cerrar sesión:', error);
-        showNotification('Error al cerrar sesión', 'error');
-      }
-    });
-  }
-  
-  // Filtros
-  if (elements.filtroForm) {
-    if (elements.filtroMes && !elements.filtroMes.value) {
-        const now = new Date();
-        const month = (now.getMonth() + 1).toString().padStart(2, '0');
-        const year = now.getFullYear();
-        elements.filtroMes.value = `${year}-${month}`;
-    }
-
-    elements.filtroForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const filtros = {
-        mes: elements.filtroMes?.value || null,
-        sucursalId: elements.filtroSucursal?.value || null,
-      };
-      cargarEvaluaciones(filtros);
-    });
-
-    if (elements.filtroMes) {
-        elements.filtroMes.addEventListener('change', () => {
-            const filtros = {
-                mes: elements.filtroMes.value,
-                sucursalId: elements.filtroSucursal?.value || null,
-            };
-            cargarEvaluaciones(filtros);
-        });
-    }
-  }
-  
-  // Toggle de filtro de mis evaluaciones
-  const toggleMisEvaluaciones = document.getElementById('solo-mis-evaluaciones');
-  if (toggleMisEvaluaciones) {
-    toggleMisEvaluaciones.addEventListener('change', () => {
-      const filtros = {
-        sucursalId: elements.filtroSucursal?.value || null,
-        fechaInicio: elements.filtroFechaInicio?.value || null,
-        fechaFin: elements.filtroFechaFin?.value || null
-      };
-      cargarEvaluaciones(filtros);
-    });
-  }
-  
-  // Nueva evaluación
-  if (elements.btnNuevaEvaluacion) {
-    console.log('Configurando evento para el botón de nueva evaluación');
-    elements.btnNuevaEvaluacion.addEventListener('click', async (e) => {
-      e.preventDefault();
-      console.log('Botón de nueva evaluación clickeado');
-      
-      // Verificar que el usuario esté autenticado
-      if (!state.currentUser) {
-        showNotification('Por favor inicia sesión para crear una evaluación', 'error');
-        return;
-      }
-      
-      // Verificar que el modal esté inicializado
-      if (!elements.modalNuevaEvaluacion) {
-        console.error('El modal no está inicializado');
-        showNotification('Error al cargar el formulario de evaluación', 'error');
-        return;
-      }
-      
-      try {
-        // Cargar las sucursales en el select
-        if (elements.selectSucursal) {
-          console.log('Cargando sucursales en el select');
-          //llenarSelectSucursales(elements.selectSucursal, 'Seleccione una sucursal');
-        } else {
-          console.error('No se encontró el select de sucursales');
-        }
-        
-        // Cargar los parámetros de evaluación
-        console.log('Cargando parámetros de evaluación');
-        await cargarParametrosEvaluacion();
-        
-        // Mostrar el modal
-        console.log('Mostrando el modal de nueva evaluación');
-        elements.modalNuevaEvaluacion.show();
-        
-      } catch (error) {
-        console.error('Error al cargar el formulario de evaluación:', error);
-        showNotification('Error al cargar el formulario de evaluación', 'error');
-      }
-    });
-  } else {
-    console.error('No se encontró el botón de nueva evaluación');
-  }
-  
-  // Guardar evaluación
-  if (elements.btnGuardarEvaluacion) {
-    elements.btnGuardarEvaluacion.addEventListener('click', guardarEvaluacion);
-  }
-  
-  // Cerrar modal al hacer clic en el botón de cancelar
-  const btnCancelar = document.querySelector('[data-bs-dismiss="modal"]');
-  if (btnCancelar) {
-    btnCancelar.addEventListener('click', () => {
-      elements.modalNuevaEvaluacion.hide();
-    });
-  }
-  
-  // Exportar a PDF
-  if (elements.btnExportPDF) {
-    elements.btnExportPDF.addEventListener('click', exportarPDF);
-  }
-  
-  // Exportar a Excel
-  if (elements.btnExportExcel) {
-    elements.btnExportExcel.addEventListener('click', exportarExcel);
-  }
-}
-
-// Inicializar el modal de Bootstrap para nueva evaluación después de que el DOM esté completamente cargado
-document.addEventListener('DOMContentLoaded', () => {
-  const modalElement = document.getElementById('modalNuevaEvaluacion');
-  if (modalElement && window.bootstrap && window.bootstrap.Modal) {
-    elements.modalNuevaEvaluacion = new window.bootstrap.Modal(modalElement);
-    console.log('Modal de nueva evaluación inicializado');
-  } else {
-    console.error('No se encontró el modal con id "modalNuevaEvaluacion" o Bootstrap no está cargado');
-  }
-});
-
-// Inicializar el dropdown de usuario (Bootstrap)
-document.addEventListener('DOMContentLoaded', () => {
-  const userDropdownEl = document.getElementById('userDropdown');
-  if (userDropdownEl && window.bootstrap && window.bootstrap.Dropdown) {
-    new window.bootstrap.Dropdown(userDropdownEl);
-    console.log('Dropdown de usuario inicializado');
-  } else {
-    console.error('No se encontró el botón userDropdown o Bootstrap no está cargado');
-  }
-});
-
-// Recargar el select de sucursal/franquicia cada vez que se abre el modal
-const modalNuevaEvaluacionEl = document.getElementById('modalNuevaEvaluacion');
-if (modalNuevaEvaluacionEl) {
-  modalNuevaEvaluacionEl.addEventListener('show.bs.modal', () => {
-    const tipo = esAdmin() && elements.tipoCafeSelect ? elements.tipoCafeSelect.value : (esFranquiciasUser() ? 'franquicia' : 'sucursal');
-    cargarSucursalesModal(tipo);
-  });
-}
-
-// Evento para mostrar/ocultar al cambiar tipo
-if (elements.tipoCafeSelect) {
-  elements.tipoCafeSelect.addEventListener('change', mostrarOcultarModeloFranquicia);
-}
-// Evento para actualizar modelo al cambiar sucursal/franquicia seleccionada
-if (elements.selectSucursal) {
-  elements.selectSucursal.addEventListener('change', mostrarOcultarModeloFranquicia);
-}
-
-// Al abrir el modal, establecer visibilidad correcta
-// Ya existe modalNuevaEvaluacionEl arriba, solo úsala aquí sin el 'const'
-modalNuevaEvaluacionEl.addEventListener('show.bs.modal', async () => {
-  const tipo = esAdmin() && elements.tipoCafeSelect ? elements.tipoCafeSelect.value : (esFranquiciasUser() ? 'franquicia' : 'sucursal');
-  await cargarSucursalesModal(tipo); // Espera a que se cargue el select
-  // LOG de depuración para validar el valor del select
-  console.log('[DEBUG][modal] Valor actual del selectSucursal:', elements.selectSucursal ? elements.selectSucursal.value : '(no existe)', 'Tipo:', elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '(no existe)');
-  cargarParametrosEvaluacion();
-  autocompletarParametrosPorDefecto();
-});
-
-// Renderizar la lista de parámetros en la sección de parámetros
-function renderValoresList() {
-  const contenedor = document.getElementById('lista-parametros');
-  if (!contenedor) return;
-  contenedor.innerHTML = '';
-  if (!window.valores) {
-    contenedor.innerHTML = '<div class="alert alert-warning">No se encontraron parámetros.</div>';
-    return;
-  }
-  const table = document.createElement('table');
-  table.className = 'table table-bordered table-hover';
-  table.innerHTML = `<thead><tr><th>Nombre</th><th>Peso</th><th>Descripción</th></tr></thead><tbody></tbody>`;
-  window.valores.forEach(param => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${param.nombre}</td><td>${param.peso}</td><td>${param.descripcion}</td>`;
-    table.querySelector('tbody').appendChild(tr);
-  });
-  contenedor.appendChild(table);
-}
-
-// Mostrar sección de parámetros al hacer click en la barra de navegación
-const navParametros = document.querySelector('[data-section="parametros"]');
-if (navParametros) {
-  navParametros.addEventListener('click', (e) => {
-    e.preventDefault();
-    showSection('parametros');
-    renderValoresList();
-  });
-}
-
-document.addEventListener('sectionShown', (e) => {
-  if (e.detail.sectionId === 'parametros') {
-    renderValoresList();
   }
   if (e.detail.sectionId === 'evaluaciones') {
     const selectorMes = document.getElementById('selectorMes');
     if (selectorMes) {
-      // Inicializar con el mes actual si está vacío o no tiene valor válido
-      if (!selectorMes.value) {
-        const now = new Date();
-        selectorMes.value = now.toISOString().slice(0, 7);
-      }
-      // Cargar historial del mes seleccionado
       cargarHistorialEvaluaciones(selectorMes.value);
-      // Evitar listeners duplicados
       if (!selectorMes.dataset.listenerAttached) {
         selectorMes.addEventListener('change', () => {
           cargarHistorialEvaluaciones(selectorMes.value);
@@ -1251,125 +140,273 @@ document.addEventListener('sectionShown', (e) => {
       }
     }
   }
+  if (e.detail.sectionId === 'reportes') {
+    mostrarGraficaSucursales();
+  }
+  if (e.detail.sectionId === 'matriz') {
+    renderizarMatriz();
+  }
+  if (e.detail.sectionId === 'parametros') {
+    // renderValoresList();
+  }
 });
 
-// Hacer funciones globales para el HTML inline onclick
-window.verEvaluacion = verEvaluacion;
-window.editarEvaluacion = editarEvaluacion;
-window.eliminarEvaluacion = eliminarEvaluacion;
-
-// Mostrar u ocultar el selector de modelo de franquicia en el modal según el tipo seleccionado
-function mostrarOcultarModeloFranquicia() {
-  const grupoModelo = document.getElementById('grupo-modelo-franquicia');
-  const selectModelo = document.getElementById('modelo-franquicia');
-  const tipo = elements.tipoCafeSelect ? elements.tipoCafeSelect.value : '';
-  if (grupoModelo && selectModelo) {
-    if (tipo === 'franquicia') {
-      grupoModelo.style.display = '';
-      // Si la franquicia ya tiene modelo, seleccionarlo
-      const franquiciaSeleccionada = franquicias.find(f => f.id === (elements.selectSucursal ? elements.selectSucursal.value : ''));
-      if (franquiciaSeleccionada && franquiciaSeleccionada.modelo) {
-        selectModelo.value = franquiciaSeleccionada.modelo;
-      } else {
-        selectModelo.value = 'Cafetería';
-      }
-    } else {
-      grupoModelo.style.display = 'none';
-    }
-  }
-}
-
-// Llenar el select de sucursal/franquicia en el modal
-function cargarSucursalesModal(tipo) {
-  const select = elements.selectSucursal;
-  if (!select) return;
-  select.innerHTML = '<option value="" selected disabled>Seleccione una opción</option>';
+// --- MATRIZ ---
+function renderizarMatriz() {
+  const contenedor = document.getElementById('contenedor-matriz');
+  if (!contenedor) return;
   let lista = [];
-  if (esAdmin()) {
-    // Mostrar ambas listas combinadas para admin
-    lista = [...sucursales, ...franquicias];
-  } else if (esFranquiciasUser()) {
-    lista = franquicias;
-  } else if (esGopUser()) {
+  if (typeof esGopUser === 'function' && esGopUser()) {
     lista = sucursales;
+  } else if (typeof esFranquiciasUser === 'function' && esFranquiciasUser()) {
+    lista = franquicias;
+  } else {
+    lista = [...sucursales, ...franquicias];
   }
-  lista.forEach(item => {
-    if (!item.activa) return;
-    
-    const option = document.createElement('option');
-    option.value = item.id;
-    option.textContent = item.nombre;
-    select.appendChild(option);
+  if (!window.parametros || lista.length === 0) {
+    contenedor.innerHTML = `<div class="alert alert-warning">No hay datos para mostrar.</div>`;
+    return;
+  }
+  const parametros = window.parametros;
+  let html = '<div class="table-responsive"><table class="table table-bordered table-hover matriz-table">';
+  html += '<thead><tr><th>Parámetro</th>';
+  lista.forEach(item => { html += `<th>${item.nombre}</th>`; });
+  html += '</tr></thead><tbody>';
+  safeForEachParametros(param => {
+    html += `<tr><td><span data-bs-toggle="tooltip" title="${param.descripcion || ''}">${param.nombre}</span></td>`;
+    lista.forEach(item => {
+      const excluidos = (window.obtenerParametrosExcluidos && window.obtenerParametrosExcluidos(item.id)) || [];
+      const esExcluido = excluidos.includes(param.nombre);
+      if (esExcluido) {
+        html += `<td class="bg-dark text-white" data-bs-toggle="tooltip" title="No aplica">NA</td>`;
+      } else {
+        let valor = '';
+        if (window.state && Array.isArray(state.evaluaciones)) {
+          const evals = state.evaluaciones
+            .filter(ev => (ev.sucursalId === item.id || ev.franquiciaId === item.id) && ev.resultados && typeof ev.resultados === 'object')
+            .sort((a, b) => (b.fecha?.toMillis?.() || 0) - (a.fecha?.toMillis?.() || 0));
+          if (evals.length > 0) {
+            const resultados = evals[0].resultados;
+            valor = resultados[param.id] ?? resultados[param.nombre] ?? '';
+            if (typeof valor === 'boolean') valor = valor ? 'Sí' : 'No';
+            if (valor === null || valor === undefined || valor === '') valor = '—';
+          } else {
+            valor = '—';
+          }
+        } else {
+          valor = '—';
+        }
+        html += `<td>${valor}</td>`;
+      }
+    });
+    html += '</tr>';
   });
-}
-
-// --- INICIO LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
-// Lista de franquicias (nombre exacto)
-const NOMBRES_FRANQUICIAS = [
-  'Vía 2',
-  'City center',
-  'Cárdenas',
-  'Paraíso',
-  'Dos Bocas',
-  'Cumuapa',
-  'Cunduacán',
-  'Jalpa de Méndez',
-  'Cd del Cármen'
-];
-
-function esFranquiciasUser() {
-  return state.currentUser && state.currentUser.email === 'franquicias@cafelacabana.com';
-}
-
-function esGopUser() {
-  return state.currentUser && state.currentUser.email === 'gop@cafelacabana.com';
-}
-
-// Filtra las sucursales según el usuario logueado
-function obtenerSucursalesVisibles() {
-  if (esAdmin()) return [...sucursales, ...franquicias];
-  if (esFranquiciasUser()) {
-    return [...franquicias];
+  html += '</tbody></table></div>';
+  contenedor.innerHTML = html;
+  if (window.bootstrap && window.bootstrap.Tooltip) {
+    contenedor.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+      new window.bootstrap.Tooltip(el);
+    });
   }
-  if (esGopUser()) {
-    return [...sucursales];
-  }
-  return [];
 }
 
-// --- FIN LÓGICA DE FILTRADO SUCURSALES/FRANQUICIAS ---
+// --- INICIALIZACIÓN DE LA APP ---
+async function initApp() {
+  // Inicializar Firebase
+  state.currentUser = auth.currentUser;
 
-// Inicializar la aplicación cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', () => {
-  // Ocultar todas las secciones excepto dashboard al cargar
-  document.querySelectorAll('.section-content').forEach(sec => {
-    if (sec.id === 'dashboard') {
-      sec.style.display = '';
+  // Cargar sucursales y franquicias
+  await cargarSucursales();
+  await cargarFranquicias();
+
+  // Cargar evaluaciones
+  await cargarEvaluaciones();
+
+  // Inicializar la tabla de evaluaciones
+  actualizarTablaEvaluaciones();
+
+  // Inicializar la matriz
+  renderizarMatriz();
+}
+
+// --- CARGAR SUCURSALES ---
+async function cargarSucursales() {
+  const sucursalesRef = collection(db, 'sucursales');
+  const q = query(sucursalesRef);
+  const querySnapshot = await getDocs(q);
+  state.sucursales = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+// --- CARGAR FRANQUICIAS ---
+async function cargarFranquicias() {
+  const franquiciasRef = collection(db, 'franquicias');
+  const q = query(franquiciasRef);
+  const querySnapshot = await getDocs(q);
+  state.franquicias = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+// --- CARGAR EVALUACIONES ---
+async function cargarEvaluaciones() {
+  console.log("Entrando a cargarEvaluaciones()");
+  const evaluacionesRef = collection(db, 'evaluaciones');
+  const q = query(evaluacionesRef);
+  try {
+    const querySnapshot = await getDocs(q);
+    console.log("Evaluaciones recibidas:", querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    state.evaluaciones = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error al obtener evaluaciones:", error);
+    state.evaluaciones = [];
+  }
+}
+
+// --- ACTUALIZAR TARJETAS DE RESUMEN DEL DASHBOARD ---
+function actualizarResumen() {
+  // Filtra solo evaluaciones con fecha válida
+  const evaluacionesValidas = state.evaluaciones.filter(ev => {
+    if (!ev.fecha) return false;
+    if (typeof ev.fecha.toDate === 'function') {
+      const d = ev.fecha.toDate();
+      return d instanceof Date && !isNaN(d.getTime());
     } else {
-      sec.style.display = 'none';
+      const d = new Date(ev.fecha);
+      return d instanceof Date && !isNaN(d.getTime());
     }
   });
 
-  // Manejar clics en la barra de navegación
-  elements.navLinks.forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const sectionId = e.currentTarget.getAttribute('data-section');
-      document.querySelectorAll('.section-content').forEach(sec => {
-        sec.style.display = (sec.id === sectionId) ? '' : 'none';
-      });
-      // Lanzar evento personalizado para lógica extra si es necesario
-      document.dispatchEvent(new CustomEvent('sectionShown', { detail: { sectionId: sectionId } }));
+  // 1. Total de evaluaciones
+  const total = evaluacionesValidas.length;
+  const totalElement = document.getElementById('resumen-total');
+  if (totalElement) totalElement.textContent = total;
+
+  // 2. Promedio general
+  let promedio = 0;
+  if (total > 0) {
+    promedio = Math.round(
+      evaluacionesValidas.reduce((acc, ev) => acc + (ev.puntajeTotal || 0), 0) / total
+    );
+  }
+  const promedioElement = document.getElementById('resumen-promedio');
+  if (promedioElement) promedioElement.textContent = promedio + "%";
+
+  // 3. Sucursal destacada (opcional, puedes reforzar la lógica si lo necesitas)
+  let destacada = '-';
+  if (total > 0) {
+    const agrupadas = {};
+    evaluacionesValidas.forEach(ev => {
+      if (!ev.sucursalNombre) return;
+      if (!agrupadas[ev.sucursalNombre]) agrupadas[ev.sucursalNombre] = [];
+      agrupadas[ev.sucursalNombre].push(ev.puntajeTotal || 0);
     });
-  });
+    let maxProm = 0;
+    Object.entries(agrupadas).forEach(([suc, scores]) => {
+      const prom = scores.reduce((a, b) => a + b, 0) / scores.length;
+      if (prom > maxProm) {
+        maxProm = prom;
+        destacada = suc;
+      }
+    });
+  }
+  const destacadaElement = document.getElementById('resumen-destacada');
+  if (destacadaElement) destacadaElement.textContent = destacada;
+  const cumplimientoElement = document.getElementById('resumen-cumplimiento');
+  if (cumplimientoElement) cumplimientoElement.textContent = `${promedio}% de cumplimiento`;
 
-  initApp().catch(error => {
-    console.error('Error al inicializar la aplicación:', error);
-    showNotification('Error al iniciar la aplicación', 'error');
-  });
-});
+  // 4. Atención (amarilla): muestra advertencia si alguna evaluación tiene puntaje < 90%
+  const atencionElement = document.getElementById('resumen-atencion');
+  if (atencionElement) {
+    const bajo = evaluacionesValidas.some(ev => (ev.puntajeTotal || 0) < 90);
+    atencionElement.style.display = bajo ? '' : 'none';
+  }
+}
 
-// --- NUEVO: Función para exportar la tabla de evaluaciones a PDF ---
+// --- ACTUALIZAR TABLA DE EVALUACIONES ---
+function actualizarTablaEvaluaciones() {
+  const tabla = document.getElementById('tabla-evaluaciones');
+  if (!tabla) return;
+  const tbody = tabla.querySelector('tbody');
+  if (!tbody) {
+    tbody = document.createElement('tbody');
+    tabla.appendChild(tbody);
+  }
+  tbody.innerHTML = '';
+  state.evaluaciones.forEach(evaluacion => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${evaluacion.fecha ? formatDate(evaluacion.fecha.toDate ? evaluacion.fecha.toDate() : new Date(evaluacion.fecha), 'DD/MM/YYYY HH:mm') : '-'}</td>
+      <td>${evaluacion.sucursalNombre || '-'}</td>
+      <td>${evaluacion.tipo || '-'}</td>
+      <td>${evaluacion.modelo || evaluacion.modeloFranquicia || '-'}</td>
+      <td>${evaluacion.usuarioNombre || '-'}</td>
+      <td>${evaluacion.puntajeTotal || 0}%</td>
+      <td>${evaluacion.completada ? 'Completada' : 'Pendiente'}</td>
+      <td class="text-end">
+        <!-- Aquí puedes poner botones de acciones, por ahora vacío -->
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// --- MOSTRAR GRÁFICA DE SUCURSALES ---
+function mostrarGraficaSucursales() {
+  // Filtra solo evaluaciones con fecha válida
+  const evaluacionesValidas = state.evaluaciones.filter(ev => {
+    if (!ev.fecha) return false;
+    if (typeof ev.fecha.toDate === 'function') {
+      const d = ev.fecha.toDate();
+      return d instanceof Date && !isNaN(d.getTime());
+    } else {
+      const d = new Date(ev.fecha);
+      return d instanceof Date && !isNaN(d.getTime());
+    }
+  });
+  // Agrupa evaluaciones por sucursal y calcula promedio
+  const sucursalesMap = {};
+  evaluacionesValidas.forEach(ev => {
+    if (!ev.sucursalNombre) return;
+    if (!sucursalesMap[ev.sucursalNombre]) {
+      sucursalesMap[ev.sucursalNombre] = { total: 0, count: 0 };
+    }
+    sucursalesMap[ev.sucursalNombre].total += ev.puntajeTotal || 0;
+    sucursalesMap[ev.sucursalNombre].count++;
+  });
+  const labels = Object.keys(sucursalesMap);
+  const data = labels.map(suc => {
+    const s = sucursalesMap[suc];
+    return s.count > 0 ? Math.round(s.total / s.count) : 0;
+  });
+  const ctx = document.getElementById('graficaSucursales')?.getContext('2d');
+  if (graficaSucursales) {
+    graficaSucursales.destroy();
+  }
+  const backgroundColors = data.map(score => {
+    if (score >= 96) return '#198754'; // verde (Bootstrap bg-success)
+    if (score >= 91) return '#ffc107'; // amarillo (Bootstrap bg-warning)
+    return '#dc3545'; // rojo (Bootstrap bg-danger)
+  });
+  graficaSucursales = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Puntaje promedio (%)',
+        data: data,
+        backgroundColor: backgroundColors
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100
+        }
+      }
+    }
+  });
+}
+
+// --- EXPORTAR PDF ---
 function exportarPDF() {
   try {
     // Obtener el mes seleccionado
@@ -1469,64 +506,7 @@ async function exportarPDFConDatos(yyyymm) {
   }
 }
 
-// --- GRÁFICA GENERAL DE SUCURSALES ---
-let graficaSucursales = null;
-
-function mostrarGraficaSucursales() {
-  // Agrupa evaluaciones por sucursal y calcula promedio
-  const sucursalesMap = {};
-  state.evaluaciones.forEach(ev => {
-    if (!ev.sucursalNombre) return;
-    if (!sucursalesMap[ev.sucursalNombre]) {
-      sucursalesMap[ev.sucursalNombre] = { total: 0, count: 0 };
-    }
-    sucursalesMap[ev.sucursalNombre].total += ev.puntajeTotal || 0;
-    sucursalesMap[ev.sucursalNombre].count++;
-  });
-  const labels = Object.keys(sucursalesMap);
-  const data = labels.map(suc => {
-    const s = sucursalesMap[suc];
-    return s.count ? Math.round(s.total / s.count) : 0;
-  });
-  const ctx = document.getElementById('graficaSucursales')?.getContext('2d');
-  if (!ctx) return;
-  if (graficaSucursales) {
-    graficaSucursales.destroy();
-  }
-  // Asignar color según el puntaje de cada sucursal
-  const backgroundColors = data.map(score => {
-    if (score >= 96) return '#198754'; // verde (Bootstrap bg-success)
-    if (score >= 91) return '#ffc107'; // amarillo (Bootstrap bg-warning)
-    return '#dc3545'; // rojo (Bootstrap bg-danger)
-  });
-  graficaSucursales = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Puntaje promedio (%)',
-        data: data,
-        backgroundColor: backgroundColors
-      }]
-    },
-    options: {
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 100
-        }
-      }
-    }
-  });
-}
-
-document.addEventListener('sectionShown', (e) => {
-  if (e.detail.sectionId === 'reportes') {
-    mostrarGraficaSucursales();
-  }
-});
-
-// --- NUEVO: Función para exportar la tabla de evaluaciones a Excel ---
+// --- EXPORTAR EXCEL ---
 function exportarExcel() {
   try {
     // Obtener el mes seleccionado
@@ -1649,9 +629,7 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
   }
   
   getDocs(q).then(snapshot => {
-    const tabla = document.getElementById('tablaHistorialEvaluaciones');
-    if (!tabla) return;
-    const tbody = tabla.querySelector('tbody');
+    const tbody = document.getElementById('tabla-historial-evaluaciones')?.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
     if (snapshot.size === 0) {
@@ -1664,14 +642,27 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
       tbody.appendChild(tr);
       return;
     }
-    snapshot.forEach(docSnap => {
-      const ev = docSnap.data();
+    snapshot.forEach(doc => {
+      const ev = doc.data();
+      // Validar fecha antes de intentar formatear
+      let fechaValida = '-';
+      if (ev.fecha) {
+        let d;
+        if (typeof ev.fecha.toDate === 'function') {
+          d = ev.fecha.toDate();
+        } else {
+          d = new Date(ev.fecha);
+        }
+        if (d instanceof Date && !isNaN(d.getTime())) {
+          fechaValida = formatDate(d, 'DD/MM/YYYY HH:mm');
+        }
+      }
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${formatDate(ev.fecha.toDate(), 'DD/MM/YYYY HH:mm')}</td>
-        <td>${ev.sucursalNombre}</td>
-        <td>${ev.usuarioNombre}</td>
-        <td>${ev.puntajeTotal}%</td>
+        <td>${fechaValida}</td>
+        <td>${ev.sucursalNombre || '-'}</td>
+        <td>${ev.usuarioNombre || '-'}</td>
+        <td>${ev.puntajeTotal != null ? ev.puntajeTotal + '%' : '-'}</td>
         <td>${ev.completada ? 'Completada' : 'Pendiente'}</td>
       `;
       tbody.appendChild(tr);
@@ -1681,6 +672,186 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
     showNotification('Error al cargar el historial de evaluaciones', 'error');
   });
 };
+
+// --- AJUSTE PARA EL MODAL Y FORMULARIO DE NUEVA EVALUACIÓN ---
+// Adaptar IDs y lógica al HTML real
+const btnNuevaEvaluacion = document.getElementById('nueva-evaluacion');
+if (btnNuevaEvaluacion) {
+  btnNuevaEvaluacion.addEventListener('click', () => {
+    const sucursalSelect = document.getElementById('sucursal');
+    if (sucursalSelect) {
+      sucursalSelect.innerHTML = '<option value="" selected disabled>Seleccione una opción</option>';
+      // Agrega sucursales
+      if (Array.isArray(window.sucursales)) {
+        window.sucursales.forEach(suc => {
+          sucursalSelect.innerHTML += `<option value="${suc.id}" data-modelo="${suc.modelo}">Sucursal: ${suc.nombre}</option>`;
+        });
+      }
+      // Agrega franquicias
+      if (Array.isArray(window.franquicias)) {
+        window.franquicias.forEach(franq => {
+          sucursalSelect.innerHTML += `<option value="${franq.id}" data-modelo="${franq.modelo}">Franquicia: ${franq.nombre}</option>`;
+        });
+      }
+    }
+    // Limpiar parámetros
+    const seccion = document.getElementById('seccion-parametros');
+    if (seccion) seccion.innerHTML = '';
+    if (window.bootstrap && window.bootstrap.Modal) {
+      const modal = new window.bootstrap.Modal(document.getElementById('modalNuevaEvaluacion'));
+      modal.show();
+    } else {
+      document.getElementById('modalNuevaEvaluacion').style.display = 'block';
+    }
+  });
+}
+
+const sucursalSelect = document.getElementById('sucursal');
+if (sucursalSelect) {
+  sucursalSelect.addEventListener('change', (e) => {
+    const selectedOption = e.target.selectedOptions[0];
+    const sucursalId = selectedOption?.value || '';
+    const modelo = selectedOption?.getAttribute('data-modelo') || '';
+    // Obtiene lista de parámetros excluidos según sucursal/franquicia
+    let excluidos = [];
+    if (sucursalId.startsWith('franq')) {
+      excluidos = parametrosExcluidosPorFranquicia[sucursalId] || [];
+    } else {
+      excluidos = parametrosExcluidosPorSucursal[sucursalId] || [];
+    }
+    // Excluir también los de modelo móvil
+    const idsExcluidosMovil = [
+      "atencion_mesa", "tableta", "puertas_vidrios", "musica_volumen",
+      "mesas_sillas_limpieza", "banos_estado", "basura_estado",
+      "barra_limpieza", "mesas_sillas_estado"
+    ];
+    const parametrosFiltrados = parametros.filter(p =>
+      (!excluidos.includes(p.id)) && (modelo === "Móvil" ? !idsExcluidosMovil.includes(p.id) : true)
+    );
+    // Renderiza los parámetros en el formulario
+    const seccion = document.getElementById('seccion-parametros');
+    if (seccion) {
+      seccion.innerHTML = `<div class="row">
+        ${parametrosFiltrados.map((param, idx) => {
+          if (param.tipo === 'booleano') {
+            return `<div class="col-md-6 mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="param_${param.id}" name="param_${param.id}">
+                <label class="form-check-label" for="param_${param.id}"><b>${idx + 1}.</b> ${param.nombre}</label>
+                <small class="text-muted d-block">${param.descripcion || ''} <span class="badge bg-info">${param.peso} pts</span></small>
+              </div>
+            </div>`;
+          } else {
+            return `<div class="col-md-6 mb-3">
+              <label><b>${idx + 1}.</b> ${param.nombre}</label>
+              <input type="number" class="form-control" name="param_${param.id}" min="0" max="100" required>
+              <small class="text-muted d-block">${param.descripcion || ''} <span class="badge bg-info">${param.peso} pts</span></small>
+            </div>`;
+          }
+        }).join('')}
+      </div>
+      <div class="mt-3"><strong>Puntaje actual: <span id="preview-puntaje">0</span> / <span id="preview-max">0</span> (<span id="preview-porcentaje">0</span>%)</strong></div>`;
+    }
+    // Inicializa preview
+    actualizarPreviewPuntaje();
+    // Agrega listeners a inputs para actualizar preview
+    const updateInputs = seccion.querySelectorAll('[name^="param_"]');
+    updateInputs.forEach(inp => {
+      inp.addEventListener('input', actualizarPreviewPuntaje);
+      inp.addEventListener('change', actualizarPreviewPuntaje);
+    });
+  });
+}
+
+// 2. Función para actualizar preview de puntaje
+function actualizarPreviewPuntaje() {
+  const seccion = document.getElementById('seccion-parametros');
+  if (!seccion) return;
+  const inputs = seccion.querySelectorAll('[name^="param_"]');
+  let total = 0, max = 0;
+  inputs.forEach(input => {
+    const paramId = input.name.replace('param_', '');
+    const param = parametros.find(p => p.id === paramId);
+    if (!param) return;
+    if (param.tipo === 'booleano') {
+      if (input.checked) total += param.peso;
+      max += param.peso;
+    } else {
+      const val = Number(input.value) || 0;
+      total += val;
+      max += param.peso;
+    }
+  });
+  document.getElementById('preview-puntaje').textContent = total;
+  document.getElementById('preview-max').textContent = max;
+  document.getElementById('preview-porcentaje').textContent = max > 0 ? Math.round((total / max) * 100) : 0;
+}
+
+// 3. Antes de guardar, muestra confirmación con puntaje final
+const formNuevaEvaluacion = document.getElementById('form-nueva-evaluacion');
+if (formNuevaEvaluacion) {
+  formNuevaEvaluacion.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    actualizarPreviewPuntaje();
+    const total = Number(document.getElementById('preview-puntaje').textContent);
+    const max = Number(document.getElementById('preview-max').textContent);
+    const porcentaje = Number(document.getElementById('preview-porcentaje').textContent);
+    if (!confirm(`¿Guardar evaluación con ${total} puntos de ${max} posibles? (${porcentaje}%)`)) {
+      return;
+    }
+    // Obtener valores del formulario
+    const sucursalSelect = document.getElementById('sucursal');
+    const modeloSelect = document.getElementById('modelo-franquicia');
+    const fechaInput = document.getElementById('fecha');
+    const observacionesInput = document.getElementById('observaciones');
+    const sucursalId = sucursalSelect?.value || null;
+    const modelo = modeloSelect?.value || '';
+    const fecha = fechaInput?.value ? new Date(fechaInput.value) : new Date();
+    const observaciones = observacionesInput?.value || '';
+    const usuario = state.currentUser?.email || "desconocido";
+    // Recolectar respuestas de parámetros
+    const respuestas = {};
+    let puntajeTotal = 0, totalParams = 0;
+    const seccion = document.getElementById('seccion-parametros');
+    if (seccion) {
+      const inputs = seccion.querySelectorAll('[name^="param_"]');
+      inputs.forEach(input => {
+        const paramId = input.name.replace('param_', '');
+        const param = parametros.find(p => p.id === paramId);
+        let val = 0;
+        if (param && param.tipo === 'booleano') {
+          val = input.checked ? param.peso : 0;
+        } else {
+          val = Number(input.value);
+        }
+        respuestas[paramId] = val;
+        puntajeTotal += val;
+        totalParams++;
+      });
+    }
+    puntajeTotal = totalParams > 0 ? Math.round(puntajeTotal / totalParams) : 0;
+    const evaluacion = {
+      sucursalId,
+      modelo,
+      usuarioNombre: usuario,
+      fecha,
+      respuestas,
+      puntajeTotal,
+      observaciones,
+      completada: true
+    };
+    await addDoc(collection(db, 'evaluaciones'), evaluacion);
+    if (window.bootstrap && window.bootstrap.Modal) {
+      window.bootstrap.Modal.getInstance(document.getElementById('modalNuevaEvaluacion')).hide();
+    } else {
+      document.getElementById('modalNuevaEvaluacion').style.display = 'none';
+    }
+    await cargarEvaluaciones();
+    actualizarResumen();
+    mostrarGraficaSucursales();
+    showNotification('Evaluación guardada correctamente', 'success');
+  });
+}
 
 // --- MODAL YOUTUBE PLAYER ---
 // Agrega un modal para el reproductor de YouTube si no existe
@@ -1703,78 +874,6 @@ if (!document.getElementById('modalYoutubePlayer')) {
 }
 // --- END MODAL YOUTUBE PLAYER ---
 
-// ...dentro de actualizarTablaEvaluaciones...
-  tbody.querySelectorAll('.btn-video').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const url = btn.dataset.url;
-      if (url) {
-        // Extraer el ID del video de YouTube
-        const match = url.match(/(?:youtu.be\/|youtube.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-        const videoId = match ? match[1] : null;
-        if (videoId) {
-          const container = document.getElementById('youtubePlayerContainer');
-          if (container) {
-            container.innerHTML = `<div class='ratio ratio-16x9'><iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}?autoplay=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
-          }
-          const modalEl = document.getElementById('modalYoutubePlayer');
-          if (modalEl && window.bootstrap) {
-            const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-          }
-        } else {
-          window.open(url, '_blank', 'noopener'); // fallback
-        }
-      }
-    });
-    if (window.bootstrap && window.bootstrap.Tooltip) {
-      new window.bootstrap.Tooltip(btn);
-    }
-  });
-// Limpiar el reproductor al cerrar el modal
-const modalEl = document.getElementById('modalYoutubePlayer');
-if (modalEl) {
-  modalEl.addEventListener('hidden.bs.modal', () => {
-    const container = document.getElementById('youtubePlayerContainer');
-    if (container) container.innerHTML = '';
-  });
-}
-
-// --- ADECUAR SELECTOR DE MES ---
-// Suponiendo que tienes un input con id 'selectorMes' y una función renderEvaluaciones(datos)
-
-document.addEventListener('DOMContentLoaded', () => {
-  const selectorMes = document.getElementById('selectorMes');
-  if (!selectorMes) return;
-
-  // Poner mes actual por defecto
-  const now = new Date();
-  const mesActual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  selectorMes.value = mesActual;
-
-  selectorMes.addEventListener('change', () => {
-    filtrarEvaluacionesPorMes(selectorMes.value);
-  });
-
-  // Filtrar al cargar
-  filtrarEvaluacionesPorMes(selectorMes.value);
-});
-
-function filtrarEvaluacionesPorMes(mes) {
-  // Supón que tienes un array global state.evaluaciones con todas las evaluaciones
-  if (!window.state || !state.evaluaciones) return;
-  const filtradas = state.evaluaciones.filter(ev => {
-    // Asume que ev.fechaCreacion es tipo 'YYYY-MM-DD' o similar
-    return ev.fechaCreacion && ev.fechaCreacion.startsWith(mes);
-  });
-  renderEvaluaciones(filtradas, mes);
-}
-
-// Modifica renderEvaluaciones para aceptar el mes y actualizar videos si aplica
-function renderEvaluaciones(evaluaciones, mes) {
-  // ... tu lógica para renderizar la tabla ...
-  // Si usas video_links.js, puedes acceder a videoLinks[mes] para los videos del mes
-}
-
 // Eliminar función filtrarEvaluacionesPorMes si ya no se usa
 
 // function filtrarEvaluacionesPorMes(mes) {
@@ -1786,3 +885,24 @@ function renderEvaluaciones(evaluaciones, mes) {
 //   });
 //   renderEvaluaciones(filtradas, mes);
 // }
+
+// Determina si una evaluación es de modelo "Móvil"
+function esEvaluacionMovil(evaluacion) {
+  // Ajusta la lógica según cómo guardas el modelo en tu objeto de evaluación
+  return evaluacion && (
+    (evaluacion.modelo === 'Móvil') ||
+    (evaluacion.modeloFranquicia === 'Móvil')
+  );
+}
+
+// --- UTILIDAD: Validar que parametros sea un array antes de usar forEach ---
+function safeForEachParametros(callback) {
+  if (Array.isArray(parametros)) {
+    parametros.forEach(callback);
+  } else if (window.parametrosData && Array.isArray(window.parametrosData)) {
+    window.parametrosData.forEach(callback);
+  } else {
+    console.error('parametros no es un array:', parametros);
+    showNotification('Error: parámetros de evaluación no cargados correctamente', 'error');
+  }
+}

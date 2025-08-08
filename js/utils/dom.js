@@ -8,6 +8,8 @@ export function showSection(sectionId, updateHash = true) {
     document.querySelectorAll('main > section').forEach(section => {
         section.style.display = 'none';
     });
+
+    
     
     // Mostrar la sección solicitada
     const section = document.getElementById(sectionId);

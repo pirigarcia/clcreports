@@ -41,10 +41,10 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" data-section="sucursales">
-                            <i class="fas fa-store me-1"></i> Sucursales
+                        <a class="nav-link" href="#" data-section="matriz">
+                          <i class="fas fa-table me-1"></i> Matriz
                         </a>
-                    </li>
+                      </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" data-section="parametros">
                             <i class="fas fa-sliders-h me-1"></i> Parámetros
@@ -75,6 +75,42 @@
 
     <!-- Contenido principal -->
     <main class="container-fluid py-4">
+    <!-- Sección de Login (SPA) -->
+    <section id="login" class="section-content" style="display:none; max-width: 400px; margin: 0 auto;">
+      <div class="login-container">
+        <div class="logo text-center mb-4">
+          <h2>CLC Reportes</h2>
+          <p class="text-muted">Sistema de Evaluación</p>
+        </div>
+        <form id="login-form">
+          <div class="mb-3">
+            <label for="email" class="form-label">Correo Electrónico</label>
+            <input type="email" class="form-control" id="email" placeholder="usuario@ejemplo.com" required>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Contraseña</label>
+            <input type="password" class="form-control" id="password" placeholder="••••••••" required>
+          </div>
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary" id="login-btn">
+              <span class="spinner-border spinner-border-sm d-none" id="login-spinner"></span>
+              Iniciar Sesión
+            </button>
+          </div>
+          <div id="login-error" class="alert alert-danger mt-3 d-none" role="alert">
+            Error al iniciar sesión. Verifica tus credenciales.
+          </div>
+          <div id="login-success" class="text-center d-none mt-3">
+            <div class="mb-3">
+              <i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>
+            </div>
+            <h4>¡Bienvenido!</h4>
+            <p>Redirigiendo al sistema...</p>
+          </div>
+        </form>
+      </div>
+    </section>
+
         <!-- Sección de Dashboard -->
         <section id="dashboard" class="section-content">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -100,12 +136,12 @@
                 <div class="card-body">
                     <form id="filtro-form" class="row g-3 align-items-end">
                         <div class="col-md-4">
-                            <label for="filtro-mes" class="form-label">Filtrar por Mes</label>
-                            <input type="month" class="form-control" id="filtro-mes">
+                            <label for="selectorMes" class="form-label">Filtrar por Mes</label>
+                            <input type="month" class="form-control" id="selectorMes">
                         </div>
                         <div class="col-md-6">
-                            <label for="filtro-sucursal" class="form-label">Sucursal / Franquicia</label>
-                            <select class="form-select" id="filtro-sucursal">
+                            <label for="selectorSucursal" class="form-label">Sucursal / Franquicia</label>
+                            <select class="form-select" id="selectorSucursal">
                                 <option value="" selected>Todas</option>
                             </select>
                         </div>
@@ -119,64 +155,64 @@
             </div>
 
             <!-- Tarjetas de resumen -->
-            <div class="row mb-4">
-                <div class="col-md-3 mb-3">
-                    <div class="card text-white bg-primary h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="card-title">Evaluaciones Totales</h6>
-                                    <h2 class="mb-0" id="total-evaluaciones">0</h2>
-                                </div>
-                                <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
-                            </div>
-                        </div>
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+            <div class="card text-white bg-primary h-100">
+                <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                    <h6 class="card-title">Evaluaciones Totales</h6>
+                    <h2 class="mb-0" id="resumen-total">0</h2>
                     </div>
+                    <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-white bg-success h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="card-title">Promedio General</h6>
-                                    <h2 class="mb-0"><span id="promedio-general">0</span>%</h2>
-                                </div>
-                                <i class="fas fa-chart-line fa-3x opacity-50"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3" id="atencion-block">
-                    <div class="card text-white bg-warning h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="card-title">Atención</h6>
-                                    <ul class="mb-0" id="atencion-sucursales" style="list-style: none; padding-left: 0;"></ul>
-                                    <div id="atencion-todas-ok" class="text-success fw-bold" style="display:none;">
-                                        ¡Todas las sucursales cumplen al 100%!
-                                    </div>
-                                </div>
-                                <i class="fas fa-exclamation-triangle fa-3x opacity-50"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-white bg-info h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="card-title">Sucursal Destacada</h6>
-                                    <h5 class="mb-0" id="sucursal-destacada">-</h5>
-                                    <small id="puntaje-sucursal">0% de cumplimiento</small>
-                                </div>
-                                <i class="fas fa-trophy fa-3x opacity-50"></i>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
+            </div>
+            <div class="col-md-3 mb-3">
+            <div class="card text-white bg-success h-100">
+                <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                    <h6 class="card-title">Promedio General</h6>
+                    <h2 class="mb-0"><span id="resumen-promedio">0</span>%</h2>
+                    </div>
+                    <i class="fas fa-chart-line fa-3x opacity-50"></i>
+                </div>
+                </div>
+            </div>
+            </div>
+            <div class="col-md-3 mb-3" id="resumen-atencion" style="display:none;">
+            <div class="card text-white bg-warning h-100">
+                <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                    <h6 class="card-title">Atención</h6>
+                    <ul class="mb-0" id="atencion-sucursales" style="list-style: none; padding-left: 0;"></ul>
+                    <div id="atencion-todas-ok" class="text-success fw-bold" style="display:none;">
+                        ¡Todas las sucursales cumplen al 100%!
+                    </div>
+                    </div>
+                    <i class="fas fa-exclamation-triangle fa-3x opacity-50"></i>
+                </div>
+                </div>
+            </div>
+            </div>
+            <div class="col-md-3 mb-3">
+            <div class="card text-white bg-info h-100">
+                <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                    <h6 class="card-title">Sucursal Destacada</h6>
+                    <h5 class="mb-0" id="resumen-destacada">-</h5>
+                    <small id="resumen-cumplimiento">0% de cumplimiento</small>
+                    </div>
+                    <i class="fas fa-trophy fa-3x opacity-50"></i>
+                </div>
+                </div>
+            </div>
+            </div>
+        </div>
         </section>
 
         <!-- Otras secciones se agregarán aquí -->
@@ -227,9 +263,12 @@
             </div>
         </section>
 
-        <section id="sucursales" class="section-content d-none">
-            <!-- Contenido de Sucursales -->
-        </section>
+        <section id="matriz" class="section-content" style="display:none">
+            <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+              <h1 class="h2">Matriz de Evaluación</h1>
+            </div>
+            <div id="contenedor-matriz"></div>
+          </section>
 
         <section id="parametros" class="section-content" style="display:none">
             <div class="container py-4">
@@ -339,6 +378,30 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
     <!-- SheetJS (xlsx) para generar Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="data/sucursales.js" type="module"></script>
+    <script src="data/franquicias.js" type="module"></script>
+    <script src="data/parametros.js" type="module"></script>
     <script type="module" src="js/app.js"></script>
+    <!-- Modal de Nueva Evaluación -->
+    <div class="modal fade" id="modalNuevaEvaluacion" tabindex="-1" aria-labelledby="modalNuevaEvaluacionLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+            <h5 class="modal-title" id="modalNuevaEvaluacionLabel">Detalles de Evaluación</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+            <form id="form-nueva-evaluacion-extra">
+                <!-- Aquí se insertarán los parámetros dinámicamente -->
+                <div id="seccion-parametros"></div>
+            </form>
+            </div>
+            <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+        </div>
+    </div>
+    <script type="module" src="js/migration-script.js"></script>
 </body>
 </html>

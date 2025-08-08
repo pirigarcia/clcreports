@@ -1,16 +1,18 @@
-// Script de migración para actualizar evaluaciones históricas
-// Aplica las nuevas exclusiones de parámetros por sucursal
+// Script de migración para poblar Firestore con sucursales, franquicias, parámetros y parámetros excluidos desde los archivos JS locales
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
 import { 
   getFirestore, 
   collection, 
-  getDocs, 
   doc,
-  updateDoc,
-  writeBatch
+  writeBatch,
+  setDoc
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
-import { obtenerParametrosExcluidos } from '../data/sucursales.js';
+
+import { sucursales } from '../data/sucursales.js';
+import { franquicias } from '../data/franquicias.js';
+import { parametros } from '../data/parametros.js';
+import { parametrosExcluidosPorSucursal, parametrosExcluidosPorFranquicia } from '../data/parametros_excluidos.js';
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -27,182 +29,50 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 /**
- * Migra todas las evaluaciones históricas aplicando las nuevas exclusiones de parámetros
+ * Función general para migrar cualquier array a una colección Firestore
  */
-async function migrarEvaluacionesHistoricas() {
-  console.log('🚀 Iniciando migración de evaluaciones históricas...');
-  
-  try {
-    // 1. Obtener todas las evaluaciones
-    console.log('📖 Obteniendo evaluaciones de Firebase...');
-    const evaluacionesSnapshot = await getDocs(collection(db, 'evaluaciones'));
-    const evaluaciones = [];
-    
-    evaluacionesSnapshot.forEach((doc) => {
-      evaluaciones.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
-    
-    console.log('📊 Total de evaluaciones encontradas: ' + evaluaciones.length);
-    
-    if (evaluaciones.length === 0) {
-      console.log('✅ No hay evaluaciones para migrar.');
-      return;
-    }
-    
-    // 2. Procesar evaluaciones en lotes
-    const loteSize = 500; // Firestore permite hasta 500 operaciones por lote
-    let evaluacionesProcesadas = 0;
-    let evaluacionesActualizadas = 0;
-    
-    for (let i = 0; i < evaluaciones.length; i += loteSize) {
-      const lote = evaluaciones.slice(i, i + loteSize);
-      const batch = writeBatch(db);
-      
-      console.log('🔄 Procesando lote ' + Math.floor(i / loteSize) + 1 + '/' + Math.ceil(evaluaciones.length / loteSize) + '...');
-      
-      for (const evaluacion of lote) {
-        const resultado = await procesarEvaluacion(evaluacion, batch);
-        evaluacionesProcesadas++;
-        
-        if (resultado.actualizada) {
-          evaluacionesActualizadas++;
-        }
-        
-        // Mostrar progreso cada 50 evaluaciones
-        if (evaluacionesProcesadas % 50 === 0) {
-          console.log('📈 Progreso: ' + evaluacionesProcesadas + '/' + evaluaciones.length + ' evaluaciones procesadas');
-        }
-      }
-      
-      // Ejecutar el lote
-      if (evaluacionesActualizadas > 0) {
-        await batch.commit();
-        console.log('✅ Lote ' + Math.floor(i / loteSize) + 1 + ' guardado en Firebase');
-      }
-    }
-    
-    console.log('🎉 Migración completada:');
-    console.log('   - Evaluaciones procesadas: ' + evaluacionesProcesadas);
-    console.log('   - Evaluaciones actualizadas: ' + evaluacionesActualizadas);
-    console.log('   - Evaluaciones sin cambios: ' + (evaluacionesProcesadas - evaluacionesActualizadas));
-    
-  } catch (error) {
-    console.error('❌ Error durante la migración:', error);
-    throw error;
+async function migrarArrayACollection(dataArray, collectionName, idField = null) {
+  if (!Array.isArray(dataArray) || dataArray.length === 0) {
+    console.warn(`No hay datos para migrar a la colección ${collectionName}.`);
+    return;
   }
+  const batch = writeBatch(db);
+  dataArray.forEach(item => {
+    let docRef;
+    if (idField && item[idField]) {
+      docRef = doc(db, collectionName, String(item[idField]));
+    } else {
+      docRef = doc(collection(db, collectionName));
+    }
+    batch.set(docRef, item);
+  });
+  await batch.commit();
+  console.log(`✅ Migración completa: ${dataArray.length} documentos a la colección ${collectionName}`);
 }
 
 /**
- * Procesa una evaluación individual aplicando las nuevas exclusiones
+ * Función principal para migrar todos los datos clave
  */
-async function procesarEvaluacion(evaluacion, batch) {
-  try {
-    const { id, sucursalId, respuestas = [] } = evaluacion;
-    
-    if (!sucursalId || !respuestas.length) {
-      console.warn('⚠️  Evaluación ' + id + ' sin sucursalId o respuestas, saltando...');
-      return { actualizada: false };
-    }
-    
-    // Obtener parámetros excluidos para esta sucursal
-    const parametrosExcluidos = obtenerParametrosExcluidos(sucursalId);
-    
-    if (parametrosExcluidos.length === 0) {
-      // No hay exclusiones para esta sucursal
-      return { actualizada: false };
-    }
-    
-    // Filtrar respuestas excluyendo parámetros que ya no aplican
-    const respuestasFiltradas = respuestas.filter(respuesta => {
-      const excluir = parametrosExcluidos.includes(respuesta.parametroId);
-      if (excluir) {
-        console.log('🚫 Excluyendo parámetro ' + respuesta.parametroId + ' de evaluación ' + id + ' (sucursal: ' + sucursalId + ')');
-      }
-      return !excluir;
-    });
-    
-    // Verificar si hubo cambios
-    if (respuestasFiltradas.length === respuestas.length) {
-      // No se excluyó ningún parámetro
-      return { actualizada: false };
-    }
-    
-    // Recalcular puntaje total
-    const puntajeTotal = respuestasFiltradas.length > 0
-      ? Math.round((respuestasFiltradas.reduce((sum, r) => sum + r.valor, 0) / respuestasFiltradas.length) * 100)
-      : 0;
-    
-    // Preparar actualización
-    const actualizacion = {
-      respuestas: respuestasFiltradas,
-      puntajeTotal: puntajeTotal,
-      fechaActualizacion: new Date(),
-      migrado: true, // Marca para identificar evaluaciones migradas
-      parametrosExcluidosEnMigracion: parametrosExcluidos
-    };
-    
-    // Agregar al batch
-    const docRef = doc(db, 'evaluaciones', id);
-    batch.update(docRef, actualizacion);
-    
-    console.log('✏️  Evaluación ' + id + ' programada para actualización (' + respuestas.length + ' → ' + respuestasFiltradas.length + ' parámetros, puntaje: ' + evaluacion.puntajeTotal + ' → ' + puntajeTotal + ')');
-    
-    return { actualizada: true };
-    
-  } catch (error) {
-    console.error('❌ Error procesando evaluación ' + evaluacion.id + ':', error);
-    return { actualizada: false };
-  }
+async function migrarTodo() {
+  await migrarArrayACollection(sucursales, 'sucursales', 'id');
+  await migrarArrayACollection(franquicias, 'franquicias', 'id');
+  await migrarArrayACollection(parametros, 'parametros', 'id');
+
+  // Guarda los parámetros excluidos como documentos únicos
+  await setDoc(doc(db, 'parametros_excluidos', 'porSucursal'), parametrosExcluidosPorSucursal);
+  await setDoc(doc(db, 'parametros_excluidos', 'porFranquicia'), parametrosExcluidosPorFranquicia);
+
+  console.log('� Migración completa de sucursales, franquicias, parámetros y parámetros excluidos.');
 }
 
-/**
- * Función para revertir la migración (por si es necesario)
- */
-async function revertirMigracion() {
-  console.log('🔄 Iniciando reversión de migración...');
-  
-  try {
-    const evaluacionesSnapshot = await getDocs(collection(db, 'evaluaciones'));
-    const evaluacionesMigradas = [];
-    
-    evaluacionesSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.migrado) {
-        evaluacionesMigradas.push({
-          id: doc.id,
-          ...data
-        });
-      }
-    });
-    
-    console.log('📊 Evaluaciones migradas encontradas: ' + evaluacionesMigradas.length);
-    
-    if (evaluacionesMigradas.length === 0) {
-      console.log('✅ No hay evaluaciones migradas para revertir.');
-      return;
-    }
-    
-    // Aquí se podría implementar la lógica de reversión si es necesario
-    console.log('⚠️  Función de reversión no implementada. Contacta al desarrollador si necesitas revertir la migración.');
-    
-  } catch (error) {
-    console.error('❌ Error durante la reversión:', error);
-    throw error;
-  }
-}
-
-// Exportar funciones para uso desde la consola del navegador
-window.migrarEvaluacionesHistoricas = migrarEvaluacionesHistoricas;
-window.revertirMigracion = revertirMigracion;
+// Exportar función para uso desde la consola del navegador
+window.migrarTodo = migrarTodo;
 
 // Función de ayuda para ejecutar desde la consola
 window.ejecutarMigracion = () => {
-  console.log('🚨 IMPORTANTE: Esta operación modificará todas las evaluaciones históricas en Firebase.');
+  console.log('🚨 IMPORTANTE: Esta operación modificará todos los datos en Firebase.');
   console.log('🚨 Asegúrate de tener un respaldo antes de continuar.');
-  console.log('🚨 Para continuar, ejecuta: migrarEvaluacionesHistoricas()');
+  console.log('🚨 Para continuar, ejecuta: migrarTodo()');
 };
 
 console.log('📋 Script de migración cargado.');
