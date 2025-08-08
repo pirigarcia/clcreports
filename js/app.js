@@ -28,6 +28,14 @@ import { parametrosExcluidosPorSucursal, parametrosExcluidosPorFranquicia } from
 // window.parametrosData = parametros; // Si necesitas la variable global, ya está definida en el archivo de datos
 import { showSection, createElement, formatDate, showLoading, hideLoading, showNotification } from './utils/dom.js';
 
+// --- Función para detectar si el usuario actual es admin ---
+function esUsuarioAdmin() {
+  if (!window.state || !window.state.currentUser || !window.usuarios) return false;
+  const email = window.state.currentUser.email;
+  const usuario = window.usuarios.find(u => u.email === email);
+  return usuario && usuario.rol === 'admin';
+}
+
 // --- Función dummy temporal para evitar error crítico ---
 function esFranquiciasUser() {
   // TODO: Implementa la lógica real según el usuario autenticado
@@ -119,12 +127,29 @@ let graficaSucursales = null;
         showSection(sectionId);
       });
     });
+
+    // Agregar funcionalidad al botón Filtrar
+    const filtroForm = document.getElementById('filtro-form');
+    if (filtroForm) {
+      filtroForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        actualizarResumen();
+        actualizarTablaEvaluaciones();
+      });
+    }
   });
 })();
 
 // --- EVENTOS PARA CARGA DINÁMICA DE SECCIONES ---
 document.addEventListener('sectionShown', (e) => {
   if (e.detail.sectionId === 'dashboard') {
+    // Forzar selector al mes actual si no hay valor
+    const selectorMes = document.getElementById('selectorMes');
+    if (selectorMes && !selectorMes.value) {
+      const now = new Date();
+      const yyyymm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      selectorMes.value = yyyymm;
+    }
     actualizarResumen();
     actualizarTablaEvaluaciones();
   }
@@ -169,34 +194,40 @@ function renderizarMatriz() {
   }
   const parametros = window.parametros;
   let html = '<div class="table-responsive"><table class="table table-bordered table-hover matriz-table">';
-  html += '<thead><tr><th>Parámetro</th>';
-  lista.forEach(item => { html += `<th>${item.nombre}</th>`; });
+  html += '<thead><tr><th style="min-width:220px;max-width:320px;width:28%">Parámetro</th>';
+  const colWidth = '110px'; // ancho fijo para todas las sucursales/franquicias
+  lista.forEach(item => { html += `<th style="width:${colWidth};min-width:${colWidth};max-width:${colWidth};text-align:center;">${item.nombre}</th>`; });
   html += '</tr></thead><tbody>';
   safeForEachParametros(param => {
-    html += `<tr><td><span data-bs-toggle="tooltip" title="${param.descripcion || ''}">${param.nombre}</span></td>`;
+    html += `<tr><td style="min-width:220px;max-width:320px;width:28%"><span data-bs-toggle="tooltip" title="${param.descripcion || ''}">${param.nombre}</span></td>`;
     lista.forEach(item => {
       const excluidos = (window.obtenerParametrosExcluidos && window.obtenerParametrosExcluidos(item.id)) || [];
       const esExcluido = excluidos.includes(param.nombre);
       if (esExcluido) {
-        html += `<td class="bg-dark text-white" data-bs-toggle="tooltip" title="No aplica">NA</td>`;
+        // Siempre celda negra, aunque haya evaluación
+        html += `<td class="bg-dark text-white" style="width:110px;min-width:110px;max-width:110px;text-align:center;" data-bs-toggle="tooltip" title="No aplica">NA</td>`;
       } else {
         let valor = '';
         if (window.state && Array.isArray(state.evaluaciones)) {
+          // Aplica el mismo ancho a las celdas de valor
           const evals = state.evaluaciones
             .filter(ev => (ev.sucursalId === item.id || ev.franquiciaId === item.id) && ev.resultados && typeof ev.resultados === 'object')
             .sort((a, b) => (b.fecha?.toMillis?.() || 0) - (a.fecha?.toMillis?.() || 0));
           if (evals.length > 0) {
-            const resultados = evals[0].resultados;
-            valor = resultados[param.id] ?? resultados[param.nombre] ?? '';
-            if (typeof valor === 'boolean') valor = valor ? 'Sí' : 'No';
-            if (valor === null || valor === undefined || valor === '') valor = '—';
+            // Busca valor del parámetro en la evaluación más reciente
+            const resultado = evals[0].respuestas[param.id] ?? evals[0].respuestas[param.nombre];
+            if (typeof resultado !== 'undefined' && resultado !== null && resultado !== '') {
+              valor = resultado;
+            } else {
+              valor = '—';
+            }
           } else {
             valor = '—';
           }
         } else {
           valor = '—';
         }
-        html += `<td>${valor}</td>`;
+        html += `<td style="width:110px;min-width:110px;max-width:110px;text-align:center;">${valor}</td>`;
       }
     });
     html += '</tr>';
@@ -333,6 +364,56 @@ function actualizarResumen() {
 }
 
 // --- ACTUALIZAR TABLA DE EVALUACIONES ---
+function getNombreSucursalFranquicia(evaluacion) {
+  if (evaluacion.sucursalId) {
+    const suc = (state.sucursales || []).find(s => s.id === evaluacion.sucursalId)
+      || (window.sucursales || []).find(s => s.id === evaluacion.sucursalId);
+    if (!suc) {
+      console.warn('[DEBUG][getNombreSucursalFranquicia] No se encontró sucursal para id:', evaluacion.sucursalId, 'IDs disponibles:', (state.sucursales||[]).map(s=>s.id));
+    } else {
+      console.log('[DEBUG][getNombreSucursalFranquicia] Match sucursal:', suc);
+    }
+    return suc ? suc.nombre : '-';
+  } else if (evaluacion.franquiciaId) {
+    const franq = (state.franquicias || []).find(f => f.id === evaluacion.franquiciaId)
+      || (window.franquicias || []).find(f => f.id === evaluacion.franquiciaId);
+    if (!franq) {
+      console.warn('[DEBUG][getNombreSucursalFranquicia] No se encontró franquicia para id:', evaluacion.franquiciaId, 'IDs disponibles:', (state.franquicias||[]).map(f=>f.id));
+    } else {
+      console.log('[DEBUG][getNombreSucursalFranquicia] Match franquicia:', franq);
+    }
+    return franq ? franq.nombre : '-';
+  }
+  return '-';
+}
+function getTipoSucursalFranquicia(evaluacion) {
+  if (evaluacion.sucursalId) return 'Sucursal';
+  if (evaluacion.franquiciaId) return 'Franquicia';
+  return '-';
+}
+function getModeloSucursalFranquicia(evaluacion) {
+  if (evaluacion.sucursalId) {
+    const suc = (state.sucursales || []).find(s => s.id === evaluacion.sucursalId)
+      || (window.sucursales || []).find(s => s.id === evaluacion.sucursalId);
+    if (!suc) {
+      console.warn('[DEBUG][getModeloSucursalFranquicia] No se encontró sucursal para id:', evaluacion.sucursalId, 'IDs disponibles:', (state.sucursales||[]).map(s=>s.id));
+    } else {
+      console.log('[DEBUG][getModeloSucursalFranquicia] Match sucursal:', suc);
+    }
+    return suc ? suc.modelo : '-';
+  } else if (evaluacion.franquiciaId) {
+    const franq = (state.franquicias || []).find(f => f.id === evaluacion.franquiciaId)
+      || (window.franquicias || []).find(f => f.id === evaluacion.franquiciaId);
+    if (!franq) {
+      console.warn('[DEBUG][getModeloSucursalFranquicia] No se encontró franquicia para id:', evaluacion.franquiciaId, 'IDs disponibles:', (state.franquicias||[]).map(f=>f.id));
+    } else {
+      console.log('[DEBUG][getModeloSucursalFranquicia] Match franquicia:', franq);
+    }
+    return franq ? franq.modelo : '-';
+  }
+  return '-';
+}
+
 function actualizarTablaEvaluaciones() {
   const tabla = document.getElementById('tabla-evaluaciones');
   if (!tabla) return;
@@ -363,23 +444,250 @@ function actualizarTablaEvaluaciones() {
     return d >= inicio && d < fin;
   });
   console.log('[DASHBOARD] Tabla para mes:', yyyymm, 'Evaluaciones:', evaluacionesFiltradas.length, evaluacionesFiltradas);
+  console.log('[DEBUG] state.sucursales:', state.sucursales);
+  console.log('[DEBUG] state.franquicias:', state.franquicias);
+  console.log('[DEBUG] evaluacionesFiltradas:', evaluacionesFiltradas);
   evaluacionesFiltradas.forEach(evaluacion => {
+    console.log('[DEBUG] evaluacion.id:', evaluacion.id, 'sucursalId:', evaluacion.sucursalId, 'franquiciaId:', evaluacion.franquiciaId);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${evaluacion.fecha ? formatDate(evaluacion.fecha.toDate ? evaluacion.fecha.toDate() : new Date(evaluacion.fecha), 'DD/MM/YYYY HH:mm') : '-'}</td>
-      <td>${evaluacion.sucursalNombre || '-'}</td>
-      <td>${evaluacion.tipo || '-'}</td>
-      <td>${evaluacion.modelo || evaluacion.modeloFranquicia || '-'}</td>
+      <td>${getNombreSucursalFranquicia(evaluacion) || '-'}</td>
+      <td>${getTipoSucursalFranquicia(evaluacion) || '-'}</td>
+      <td>${getModeloSucursalFranquicia(evaluacion) || '-'}</td>
       <td>${evaluacion.usuarioNombre || '-'}</td>
-      <td>${evaluacion.puntajeTotal || 0}%</td>
+      <td>${typeof evaluacion.puntajeTotal === 'number' ? Math.round(evaluacion.puntajeTotal) : 0}%</td>
       <td>${evaluacion.completada ? 'Completada' : 'Pendiente'}</td>
       <td class="text-end">
-        <!-- Aquí puedes poner botones de acciones, por ahora vacío -->
+        <button class="btn btn-sm btn-outline-primary me-1" title="Ver evaluación"><i class="bi bi-eye" style="color:#0d6efd;"></i></button>
+        <button class="btn btn-sm btn-outline-danger me-1" title="Ver video"><i class="bi bi-eye" style="color:#dc3545;"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Editar"><i class="bi bi-pencil" style="color:#0d6efd;"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash" style="color:#dc3545;"></i></button>
       </td>
     `;
     tbody.appendChild(tr);
   });
+
+  // Delegación de eventos para los botones de acción
+  tbody.addEventListener('click', async function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const tr = btn.closest('tr');
+    if (!tr) return;
+    // Obtener el índice de la fila
+    const rowIndex = Array.from(tbody.children).indexOf(tr);
+    // Obtener la evaluación correspondiente
+    const evaluacion = evaluacionesFiltradas ? evaluacionesFiltradas[rowIndex] : null;
+    if (!evaluacion) return;
+
+    // Botón: Ver evaluación (ojo azul)
+    if (btn.title === 'Ver evaluación') {
+      mostrarModalDetallesEvaluacion(evaluacion);
+    }
+    // Botón: Ver video (ojo rojo)
+    else if (btn.title === 'Ver video') {
+      mostrarModalVideoEvaluacion(evaluacion);
+    }
+    // Botón: Editar
+    else if (btn.title === 'Editar') {
+      editarEvaluacion(evaluacion);
+    }
+    // Botón: Eliminar
+    else if (btn.title === 'Eliminar') {
+      eliminarEvaluacion(evaluacion);
+    }
+  });
 }
+
+// Función para mostrar el modal de detalles de evaluación
+function mostrarModalDetallesEvaluacion(evaluacion) {
+  // Aquí puedes reutilizar el modal existente o crear uno nuevo
+  // Por simplicidad, mostramos los datos en un alert (puedes reemplazarlo por tu modal real)
+  let detalles = '';
+  detalles += 'Fecha: ' + (evaluacion.fecha ? formatDate(evaluacion.fecha.toDate ? evaluacion.fecha.toDate() : new Date(evaluacion.fecha), 'DD/MM/YYYY HH:mm') : '-') + '\n';
+  detalles += 'Sucursal/Franquicia: ' + (getNombreSucursalFranquicia(evaluacion) || '-') + '\n';
+  detalles += 'Tipo: ' + (getTipoSucursalFranquicia(evaluacion) || '-') + '\n';
+  detalles += 'Modelo: ' + (getModeloSucursalFranquicia(evaluacion) || '-') + '\n';
+  detalles += 'Evaluador: ' + (evaluacion.usuarioNombre || '-') + '\n';
+  detalles += 'Puntaje: ' + (typeof evaluacion.puntajeTotal === 'number' ? Math.round(evaluacion.puntajeTotal) : 0) + '%\n';
+  detalles += 'Estado: ' + (evaluacion.completada ? 'Completada' : 'Pendiente') + '\n';
+  detalles += 'Observaciones: ' + (evaluacion.observaciones || '-') + '\n';
+  alert(detalles); // TODO: Reemplazar por modal visual
+}
+
+// Función para mostrar el modal de video de evaluación
+function mostrarModalVideoEvaluacion(evaluacion) {
+  // Busca el enlace de video según sucursal/franquicia y fecha
+  let videoId = null;
+  // Lógica ejemplo: busca en videoLinks por sucursalId/franquiciaId y mes
+  // Aquí solo se muestra un ejemplo genérico
+  if (evaluacion.sucursalId && videoLinks[evaluacion.sucursalId]) {
+    videoId = videoLinks[evaluacion.sucursalId];
+  } else if (evaluacion.franquiciaId && videoLinks[evaluacion.franquiciaId]) {
+    videoId = videoLinks[evaluacion.franquiciaId];
+  }
+  if (!videoId) {
+    showNotification('No hay video asociado a esta evaluación', 'warning');
+    return;
+  }
+  // Mostrar el modal de YouTube
+  const container = document.getElementById('youtubePlayerContainer');
+  if (container) {
+    container.innerHTML = `<iframe width="100%" height="400" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+    const modal = new bootstrap.Modal(document.getElementById('modalYoutubePlayer'));
+    modal.show();
+  }
+}
+
+// Función para editar evaluación (handler vacío por ahora)
+async function editarEvaluacion(evaluacion) {
+  // Mostrar el modal de evaluación para edición, pero primero renderizar selects y parámetros según la evaluación
+  const modalEl = document.getElementById('modalNuevaEvaluacion');
+  if (!modalEl) {
+    showNotification('No se encontró el modal de evaluación', 'error');
+    return;
+  }
+  try {
+    // 1. Rellenar el select mixto de sucursal/franquicia
+    const sucursalSelect = document.getElementById('sucursal');
+    if (sucursalSelect) {
+      sucursalSelect.innerHTML = '<option value="" disabled>Seleccione una opción</option>';
+      // Agrega sucursales
+      if (Array.isArray(window.sucursales)) {
+        window.sucursales.forEach(suc => {
+          sucursalSelect.innerHTML += `<option value="${suc.id}" data-modelo="${suc.modelo}">${suc.nombre}</option>`;
+        });
+      }
+      // Agrega franquicias
+      if (Array.isArray(window.franquicias)) {
+        window.franquicias.forEach(franq => {
+          sucursalSelect.innerHTML += `<option value="${franq.id}" data-modelo="${franq.modelo}">${franq.nombre}</option>`;
+        });
+      }
+      // Selecciona el valor correcto
+      if (evaluacion.sucursalId) {
+        sucursalSelect.value = evaluacion.sucursalId;
+      } else if (evaluacion.franquiciaId) {
+        sucursalSelect.value = evaluacion.franquiciaId;
+      }
+    }
+    // 2. Rellenar el select de tipo
+    const tipoSelect = document.getElementById('tipo-cafe');
+    if (tipoSelect && evaluacion.tipo) {
+      tipoSelect.value = evaluacion.tipo;
+    }
+    // 3. Rellenar el select de modelo
+    const modeloSelect = document.getElementById('modelo-cafe');
+    if (modeloSelect && evaluacion.modelo) {
+      modeloSelect.value = evaluacion.modelo;
+    }
+    // 4. Renderizar los parámetros correctos según la selección
+    // (esto dispara la lógica normal del change de sucursal)
+    if (sucursalSelect) {
+      const event = new Event('change');
+      sucursalSelect.dispatchEvent(event);
+    }
+    // Espera un tiempo breve para asegurar que los parámetros ya están en el DOM
+    setTimeout(() => {
+      // 5. Precargar observaciones
+      const obsInput = document.getElementById('observaciones');
+      if (obsInput) {
+        obsInput.value = evaluacion.observaciones || '';
+      }
+      // 6. Precargar respuestas a parámetros
+      if (evaluacion.respuestas) {
+        Object.entries(evaluacion.respuestas).forEach(([paramId, valor]) => {
+          const input = document.querySelector(`[name="param_${paramId}"]`);
+          if (input) {
+            if (input.type === 'checkbox') {
+              input.checked = !!valor;
+            } else {
+              input.value = valor;
+            }
+          }
+        });
+      }
+      // 7. Mostrar el modal
+      if (window.bootstrap && window.bootstrap.Modal) {
+        const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      } else {
+        modalEl.style.display = 'block';
+      }
+    }, 100); // 100ms para asegurar que los parámetros ya están
+  } catch (err) {
+    showNotification('Error al cargar datos para edición', 'error');
+    console.error(err);
+  }
+}
+
+// Función para eliminar evaluación
+// Modal visual para confirmar eliminación de evaluación
+function eliminarEvaluacion(evaluacion) {
+  // Guardar la evaluación a eliminar en el estado global
+  window.state = window.state || {};
+  window.state.evaluacionAEliminar = evaluacion;
+  // Mostrar info básica en el modal
+  const infoDiv = document.getElementById('infoEvaluacionEliminar');
+  if (infoDiv) {
+    infoDiv.innerHTML = `
+      <b>Fecha:</b> ${evaluacion.fecha ? (evaluacion.fecha.toDate ? formatDate(evaluacion.fecha.toDate(), 'DD/MM/YYYY HH:mm') : formatDate(new Date(evaluacion.fecha), 'DD/MM/YYYY HH:mm')) : '-'}<br>
+      <b>Sucursal/Franquicia:</b> ${getNombreSucursalFranquicia(evaluacion)}<br>
+      <b>Modelo:</b> ${getModeloSucursalFranquicia(evaluacion)}<br>
+      <b>Evaluador:</b> ${evaluacion.usuarioNombre || '-'}<br>
+      <b>Puntaje:</b> ${typeof evaluacion.puntajeTotal === 'number' ? Math.round(evaluacion.puntajeTotal) : '-'}%
+    `;
+  }
+  // Mostrar el modal visual Bootstrap
+  const modal = window.bootstrap && window.bootstrap.Modal ? window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmarEliminar')) : null;
+  if (modal) {
+    modal.show();
+  } else {
+    document.getElementById('modalConfirmarEliminar').style.display = 'block';
+  }
+}
+
+// Listener para el botón de confirmación del modal
+(function setupEliminarEvalListener() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btnConfirmarEliminarEval');
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const evaluacion = window.state && window.state.evaluacionAEliminar;
+        if (!evaluacion || !evaluacion.id) {
+          showNotification('No se encontró la evaluación a eliminar', 'error');
+          return;
+        }
+        try {
+          // Cerrar el modal visual
+          const modal = window.bootstrap && window.bootstrap.Modal ? window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmarEliminar')) : null;
+          if (modal) modal.hide();
+          // Proceso de borrado (igual que antes)
+          const docRef = doc(window.db, 'evaluaciones', evaluacion.id);
+          const docSnap = await getDoc(docRef);
+          if (!docSnap.exists()) {
+            showNotification('La evaluación no existe en Firestore (id: ' + evaluacion.id + ')', 'error');
+            return;
+          }
+          await deleteDoc(docRef);
+          showNotification('Evaluación eliminada correctamente', 'success');
+          // Refrescar datos
+          await cargarEvaluaciones();
+          actualizarResumen();
+          actualizarTablaEvaluaciones();
+        } catch (error) {
+          console.error('[ELIMINAR][MODAL] Error:', error);
+          if (error && error.code === 'permission-denied') {
+            showNotification('No tienes permisos para eliminar. Revisa las reglas de seguridad de Firestore.', 'error');
+          } else {
+            showNotification('Error al eliminar evaluación: ' + (error.message || error), 'error');
+          }
+        }
+      });
+    }
+  });
+})();
+
 
 // --- MOSTRAR GRÁFICA DE SUCURSALES ---
 function mostrarGraficaSucursales() {
@@ -662,13 +970,13 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
   }
   
   getDocs(q).then(snapshot => {
-    const tbody = document.getElementById('tabla-historial-evaluaciones')?.querySelector('tbody');
+    const tbody = document.getElementById('tabla-evaluaciones')?.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
     if (snapshot.size === 0) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td colspan="5" class="text-center py-4 text-muted">
+        <td colspan="8" class="text-center py-4 text-muted">
           No se encontraron evaluaciones
         </td>
       `;
@@ -693,10 +1001,18 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${fechaValida}</td>
-        <td>${ev.sucursalNombre || '-'}</td>
+        <td>${ev.sucursalNombre || ev.franquiciaNombre || '-'}</td>
+        <td>${ev.tipo || '-'}</td>
+        <td>${ev.modelo || ev.modeloFranquicia || '-'}</td>
         <td>${ev.usuarioNombre || '-'}</td>
         <td>${ev.puntajeTotal != null ? ev.puntajeTotal + '%' : '-'}</td>
         <td>${ev.completada ? 'Completada' : 'Pendiente'}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary me-1" title="Ver evaluación"><i class="bi bi-eye" style="color:#0d6efd;"></i></button>
+          <button class="btn btn-sm btn-outline-danger me-1" title="Ver video"><i class="bi bi-eye" style="color:#dc3545;"></i></button>
+          <button class="btn btn-sm btn-outline-primary me-1" title="Editar"><i class="bi bi-pencil" style="color:#0d6efd;"></i></button>
+          <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash" style="color:#dc3545;"></i></button>
+        </td>
       `;
       tbody.appendChild(tr);
     });
@@ -832,25 +1148,46 @@ if (formNuevaEvaluacion) {
     const porcentaje = Number(document.getElementById('preview-porcentaje').textContent);
 
     // Obtener valores del formulario
+    const tipoSelect = document.getElementById('tipo-cafe');
     const sucursalSelect = document.getElementById('sucursal');
     const modeloSelect = document.getElementById('modelo-franquicia');
     const fechaInput = document.getElementById('fecha');
     const observacionesInput = document.getElementById('observaciones');
-    const sucursalId = sucursalSelect?.value || null;
+
+    const tipo = tipoSelect?.value || '';
+    const seleccionId = sucursalSelect?.value || null;
+    let sucursalId = null;
+    let franquiciaId = null;
     let modelo = '';
-    if (sucursalId && window.sucursales) {
-      const sucursalObj = window.sucursales.find(s => s.id === sucursalId);
+
+    // Buscar en datos locales según tipo
+    if (tipo === 'sucursal' && seleccionId) {
+      // Buscar en sucursales
+      const sucursalObj = (state.sucursales || window.sucursales || []).find(s => s.id === seleccionId);
       if (sucursalObj) {
+        sucursalId = sucursalObj.id;
         modelo = sucursalObj.modelo;
       }
+    } else if (tipo === 'franquicia' && seleccionId) {
+      // Buscar en franquicias
+      const franquiciaObj = (state.franquicias || window.franquicias || []).find(f => f.id === seleccionId);
+      if (franquiciaObj) {
+        franquiciaId = franquiciaObj.id;
+        modelo = franquiciaObj.modelo;
+      }
     }
+
+    // Fallback: si no se detecta modelo, usar el select manual
     if (!modelo && modeloSelect) {
-      // Si es franquicia, toma el modelo seleccionado manualmente
       modelo = modeloSelect.value || '';
     }
     const fecha = fechaInput?.value ? new Date(fechaInput.value) : new Date();
     const observaciones = observacionesInput?.value || '';
     const usuario = state.currentUser?.email || "desconocido";
+
+    // Log para depuración
+    console.log('Tipo seleccionado:', tipo);
+    console.log('SucursalId:', sucursalId, 'FranquiciaId:', franquiciaId, 'Modelo:', modelo);
     // Recolectar respuestas de parámetros
     const respuestas = {};
     let puntajeTotal = 0, totalParams = 0;
@@ -873,8 +1210,10 @@ if (formNuevaEvaluacion) {
     }
     puntajeTotal = totalParams > 0 ? Math.round(puntajeTotal / totalParams) : 0;
     const evaluacion = {
-      sucursalId,
-      modelo,
+      sucursalId: sucursalId || null,
+      franquiciaId: franquiciaId || null,
+      tipo: tipo || null, // 'sucursal' o 'franquicia'
+      modelo: modelo || null,
       usuarioNombre: usuario,
       fecha,
       respuestas,
@@ -882,6 +1221,8 @@ if (formNuevaEvaluacion) {
       observaciones,
       completada: true
     };
+    // Log para depuración
+    console.log('Objeto evaluación a guardar:', evaluacion);
     // Log de usuario autenticado para depuración
     console.log('Usuario autenticado al guardar:', window.auth?.currentUser?.email);
     console.log('>>> Antes de addDoc');
