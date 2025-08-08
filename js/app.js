@@ -222,7 +222,8 @@ async function initApp() {
   // Cargar evaluaciones
   await cargarEvaluaciones();
 
-  // Inicializar la tabla de evaluaciones
+  // Actualizar dashboard después de cargar datos
+  actualizarResumen();
   actualizarTablaEvaluaciones();
 
   // Inicializar la matriz
@@ -262,17 +263,28 @@ async function cargarEvaluaciones() {
 
 // --- ACTUALIZAR TARJETAS DE RESUMEN DEL DASHBOARD ---
 function actualizarResumen() {
-  // Filtra solo evaluaciones con fecha válida
+  // Filtra solo evaluaciones del mes seleccionado
+  const selectorMes = document.getElementById('selectorMes');
+  let yyyymm = selectorMes?.value;
+  if (!yyyymm) {
+    // Si no hay selector, usar mes actual
+    const now = new Date();
+    yyyymm = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+  const [year, month] = yyyymm.split('-');
+  const inicio = new Date(Number(year), Number(month) - 1, 1);
+  const fin = new Date(Number(year), Number(month), 1);
   const evaluacionesValidas = state.evaluaciones.filter(ev => {
     if (!ev.fecha) return false;
+    let d = null;
     if (typeof ev.fecha.toDate === 'function') {
-      const d = ev.fecha.toDate();
-      return d instanceof Date && !isNaN(d.getTime());
+      d = ev.fecha.toDate();
     } else {
-      const d = new Date(ev.fecha);
-      return d instanceof Date && !isNaN(d.getTime());
+      d = new Date(ev.fecha);
     }
+    return d >= inicio && d < fin;
   });
+  console.log('[DASHBOARD] Resumen para mes:', yyyymm, 'Evaluaciones:', evaluacionesValidas.length, evaluacionesValidas);
 
   // 1. Total de evaluaciones
   const total = evaluacionesValidas.length;
@@ -324,13 +336,34 @@ function actualizarResumen() {
 function actualizarTablaEvaluaciones() {
   const tabla = document.getElementById('tabla-evaluaciones');
   if (!tabla) return;
-  const tbody = tabla.querySelector('tbody');
+  let tbody = tabla.querySelector('tbody');
   if (!tbody) {
     tbody = document.createElement('tbody');
     tabla.appendChild(tbody);
   }
   tbody.innerHTML = '';
-  state.evaluaciones.forEach(evaluacion => {
+  // Filtrar por mes seleccionado
+  const selectorMes = document.getElementById('selectorMes');
+  let yyyymm = selectorMes?.value;
+  if (!yyyymm) {
+    const now = new Date();
+    yyyymm = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+  const [year, month] = yyyymm.split('-');
+  const inicio = new Date(Number(year), Number(month) - 1, 1);
+  const fin = new Date(Number(year), Number(month), 1);
+  const evaluacionesFiltradas = state.evaluaciones.filter(ev => {
+    if (!ev.fecha) return false;
+    let d = null;
+    if (typeof ev.fecha.toDate === 'function') {
+      d = ev.fecha.toDate();
+    } else {
+      d = new Date(ev.fecha);
+    }
+    return d >= inicio && d < fin;
+  });
+  console.log('[DASHBOARD] Tabla para mes:', yyyymm, 'Evaluaciones:', evaluacionesFiltradas.length, evaluacionesFiltradas);
+  evaluacionesFiltradas.forEach(evaluacion => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${evaluacion.fecha ? formatDate(evaluacion.fecha.toDate ? evaluacion.fecha.toDate() : new Date(evaluacion.fecha), 'DD/MM/YYYY HH:mm') : '-'}</td>
@@ -791,21 +824,30 @@ function actualizarPreviewPuntaje() {
 const formNuevaEvaluacion = document.getElementById('form-nueva-evaluacion');
 if (formNuevaEvaluacion) {
   formNuevaEvaluacion.addEventListener('submit', async (e) => {
+    console.log('>>> SUBMIT formulario de evaluación disparado');
     e.preventDefault();
     actualizarPreviewPuntaje();
     const total = Number(document.getElementById('preview-puntaje').textContent);
     const max = Number(document.getElementById('preview-max').textContent);
     const porcentaje = Number(document.getElementById('preview-porcentaje').textContent);
-    if (!confirm(`¿Guardar evaluación con ${total} puntos de ${max} posibles? (${porcentaje}%)`)) {
-      return;
-    }
+
     // Obtener valores del formulario
     const sucursalSelect = document.getElementById('sucursal');
     const modeloSelect = document.getElementById('modelo-franquicia');
     const fechaInput = document.getElementById('fecha');
     const observacionesInput = document.getElementById('observaciones');
     const sucursalId = sucursalSelect?.value || null;
-    const modelo = modeloSelect?.value || '';
+    let modelo = '';
+    if (sucursalId && window.sucursales) {
+      const sucursalObj = window.sucursales.find(s => s.id === sucursalId);
+      if (sucursalObj) {
+        modelo = sucursalObj.modelo;
+      }
+    }
+    if (!modelo && modeloSelect) {
+      // Si es franquicia, toma el modelo seleccionado manualmente
+      modelo = modeloSelect.value || '';
+    }
     const fecha = fechaInput?.value ? new Date(fechaInput.value) : new Date();
     const observaciones = observacionesInput?.value || '';
     const usuario = state.currentUser?.email || "desconocido";
@@ -840,18 +882,28 @@ if (formNuevaEvaluacion) {
       observaciones,
       completada: true
     };
-    await addDoc(collection(db, 'evaluaciones'), evaluacion);
-    if (window.bootstrap && window.bootstrap.Modal) {
-      window.bootstrap.Modal.getInstance(document.getElementById('modalNuevaEvaluacion')).hide();
-    } else {
-      document.getElementById('modalNuevaEvaluacion').style.display = 'none';
+    // Log de usuario autenticado para depuración
+    console.log('Usuario autenticado al guardar:', window.auth?.currentUser?.email);
+    console.log('>>> Antes de addDoc');
+    try {
+      await addDoc(collection(db, 'evaluaciones'), evaluacion);
+      console.log('>>> Después de addDoc (guardado exitoso)');
+      if (window.bootstrap && window.bootstrap.Modal) {
+        window.bootstrap.Modal.getInstance(document.getElementById('modalNuevaEvaluacion')).hide();
+      } else {
+        document.getElementById('modalNuevaEvaluacion').style.display = 'none';
+      }
+      await cargarEvaluaciones();
+      actualizarResumen();
+      mostrarGraficaSucursales();
+      showNotification('Evaluación guardada correctamente', 'success');
+    } catch (error) {
+      console.error('Error al guardar evaluación:', error);
+      showNotification('Error al guardar evaluación: ' + (error.message || error), 'error');
     }
-    await cargarEvaluaciones();
-    actualizarResumen();
-    mostrarGraficaSucursales();
-    showNotification('Evaluación guardada correctamente', 'success');
   });
 }
+
 
 // --- MODAL YOUTUBE PLAYER ---
 // Agrega un modal para el reproductor de YouTube si no existe

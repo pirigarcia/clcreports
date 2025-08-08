@@ -47,6 +47,20 @@ async function handleLogin(e) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Iniciando sesión...';
         await login(email, password);
+        // Enriquecer usuario autenticado con datos de window.usuarios
+        let extraUser = null;
+        if (window.usuarios && Array.isArray(window.usuarios)) {
+            extraUser = window.usuarios.find(u => u.email === email);
+        }
+        // Mezclar datos extra con el usuario autenticado de Firebase
+        if (extraUser) {
+            // auth.currentUser puede no estar disponible aquí, así que solo guarda el extraUser
+            window.state = window.state || {};
+            window.state.currentUser = {
+                email,
+                ...extraUser
+            };
+        }
         showSection('dashboard');
         showNotification('Sesión iniciada correctamente', 'success');
     } catch (error) {
