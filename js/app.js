@@ -20,8 +20,29 @@ import {
   onAuthStateChanged,
   signOut
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
-import { sucursales, obtenerSucursalPorId } from '../data/sucursales.js';
-import { franquicias, obtenerFranquiciaPorId } from '../data/franquicias.js';
+let sucursales, obtenerSucursalPorId, franquicias, obtenerFranquiciaPorId;
+try {
+  // Intentar import estándar (funciona en localhost)
+  ({ sucursales, obtenerSucursalPorId } = await import('../data/sucursales.js'));
+  ({ franquicias, obtenerFranquiciaPorId } = await import('../data/franquicias.js'));
+} catch (e) {
+  try {
+    // Intentar ruta absoluta para GitHub Pages
+    ({ sucursales, obtenerSucursalPorId } = await import('/clcreports/data/sucursales.js'));
+    ({ franquicias, obtenerFranquiciaPorId } = await import('/clcreports/data/franquicias.js'));
+  } catch (e2) {
+    try {
+      // Intentar ruta relativa desde raíz del proyecto
+      ({ sucursales, obtenerSucursalPorId } = await import('./data/sucursales.js'));
+      ({ franquicias, obtenerFranquiciaPorId } = await import('./data/franquicias.js'));
+    } catch (e3) {
+      console.error('[CRÍTICO] No se pudieron cargar los datos de sucursales o franquicias en ningún entorno.', e, e2, e3);
+      alert('Error crítico: No se pudieron cargar los datos de sucursales/franquicias. Por favor, contacta al administrador.');
+    }
+  }
+}
+window.sucursales = sucursales;
+window.franquicias = franquicias;
 import { categorias, parametros, getParametrosPorCategoria, getParametroPorId, getParametrosParaSucursal, getPuntajeMaximo } from '../data/parametros.js';
 import { videoLinks } from '../data/video_links.js';
 import { parametrosExcluidosPorSucursal, parametrosExcluidosPorFranquicia } from '../data/parametros_excluidos.js';
