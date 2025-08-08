@@ -285,7 +285,12 @@ async function cargarEvaluaciones() {
   try {
     const querySnapshot = await getDocs(q);
     console.log("Evaluaciones recibidas:", querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    state.evaluaciones = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    state.evaluaciones = querySnapshot.docs.map(doc => {
+      const data = { id: doc.id, ...doc.data() };
+      data.puntajeTotal = Number(data.puntajeTotal);
+      if (isNaN(data.puntajeTotal)) data.puntajeTotal = 0;
+      return data;
+    });
   } catch (error) {
     console.error("Error al obtener evaluaciones:", error);
     state.evaluaciones = [];
@@ -459,7 +464,6 @@ function actualizarTablaEvaluaciones() {
       <td>${typeof evaluacion.puntajeTotal === 'number' ? Math.round(evaluacion.puntajeTotal) : 0}%</td>
       <td>${evaluacion.completada ? 'Completada' : 'Pendiente'}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" title="Ver evaluación"><i class="bi bi-eye" style="color:#0d6efd;"></i></button>
         <button class="btn btn-sm btn-outline-danger me-1" title="Ver video"><i class="bi bi-eye" style="color:#dc3545;"></i></button>
         <button class="btn btn-sm btn-outline-primary me-1" title="Editar"><i class="bi bi-pencil" style="color:#0d6efd;"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash" style="color:#dc3545;"></i></button>
@@ -480,12 +484,8 @@ function actualizarTablaEvaluaciones() {
     const evaluacion = evaluacionesFiltradas ? evaluacionesFiltradas[rowIndex] : null;
     if (!evaluacion) return;
 
-    // Botón: Ver evaluación (ojo azul)
-    if (btn.title === 'Ver evaluación') {
-      mostrarModalDetallesEvaluacion(evaluacion);
-    }
     // Botón: Ver video (ojo rojo)
-    else if (btn.title === 'Ver video') {
+    if (btn.title === 'Ver video') {
       mostrarModalVideoEvaluacion(evaluacion);
     }
     // Botón: Editar
@@ -541,6 +541,13 @@ function mostrarModalVideoEvaluacion(evaluacion) {
 
 // Función para editar evaluación (handler vacío por ahora)
 async function editarEvaluacion(evaluacion) {
+  console.log('[EDITAR] Click en editar, evaluacion:', evaluacion, 'id:', evaluacion && evaluacion.id);
+  // Guardar en estado global que se está editando
+  window.state = window.state || {};
+  window.state.evaluacionEditando = evaluacion && evaluacion.id ? { ...evaluacion } : null;
+  // Guardar en estado global que se está editando
+  window.state = window.state || {};
+  window.state.evaluacionEditando = evaluacion && evaluacion.id ? { ...evaluacion } : null;
   // Mostrar el modal de evaluación para edición, pero primero renderizar selects y parámetros según la evaluación
   const modalEl = document.getElementById('modalNuevaEvaluacion');
   if (!modalEl) {
@@ -1008,7 +1015,7 @@ window.cargarHistorialEvaluaciones = function cargarHistorialEvaluaciones(yyyymm
         <td>${ev.puntajeTotal != null ? ev.puntajeTotal + '%' : '-'}</td>
         <td>${ev.completada ? 'Completada' : 'Pendiente'}</td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1" title="Ver evaluación"><i class="bi bi-eye" style="color:#0d6efd;"></i></button>
+
           <button class="btn btn-sm btn-outline-danger me-1" title="Ver video"><i class="bi bi-eye" style="color:#dc3545;"></i></button>
           <button class="btn btn-sm btn-outline-primary me-1" title="Editar"><i class="bi bi-pencil" style="color:#0d6efd;"></i></button>
           <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash" style="color:#dc3545;"></i></button>
@@ -1082,7 +1089,8 @@ if (sucursalSelect) {
     if (seccion) {
       seccion.innerHTML = `<div class="row">
         ${parametrosFiltrados.map((param, idx) => {
-          if (param.tipo === 'booleano') {
+          // Forzar checkbox para parámetros 9-12 (índices 8,9,10,11)
+          if (param.tipo === 'booleano' || (idx >= 8 && idx <= 11)) {
             return `<div class="col-md-6 mb-3">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="param_${param.id}" name="param_${param.id}">
@@ -1093,7 +1101,7 @@ if (sucursalSelect) {
           } else {
             return `<div class="col-md-6 mb-3">
               <label><b>${idx + 1}.</b> ${param.nombre}</label>
-              <input type="number" class="form-control" name="param_${param.id}" min="0" max="100" required>
+              <input type="checkbox" class="form-check-input" id="param_${param.id}" name="param_${param.id}">
               <small class="text-muted d-block">${param.descripcion || ''} <span class="badge bg-info">${param.peso} pts</span></small>
             </div>`;
           }
@@ -1116,12 +1124,63 @@ if (sucursalSelect) {
 function actualizarPreviewPuntaje() {
   const seccion = document.getElementById('seccion-parametros');
   if (!seccion) return;
-  const inputs = seccion.querySelectorAll('[name^="param_"]');
+
+  // Obtener tipo de evaluación y selección actual
+  const tipoSelect = document.getElementById('tipo');
+  const sucursalSelect = document.getElementById('sucursal');
+  const franquiciaSelect = document.getElementById('franquicia');
+  const modeloSelect = document.getElementById('modelo');
+
+  let tipo = tipoSelect?.value || '';
+  let seleccionId = null;
+  let modelo = '';
+  if (tipo === 'sucursal') {
+    seleccionId = sucursalSelect?.value || null;
+    const suc = (window.state?.sucursales || window.sucursales || []).find(s => s.id === seleccionId);
+    if (suc) modelo = suc.modelo;
+  } else if (tipo === 'franquicia') {
+    seleccionId = franquiciaSelect?.value || null;
+    const franq = (window.state?.franquicias || window.franquicias || []).find(f => f.id === seleccionId);
+    if (franq) modelo = franq.modelo;
+  }
+  // Fallback: si no se detecta modelo, usar el select manual
+  if (!modelo && modeloSelect) {
+    modelo = modeloSelect.value || '';
+  }
+
+  // Determinar parámetros aplicables
+  let parametrosAplicables = [...parametros];
+  // Excluir parámetros según sucursal/franquicia/modelo
+  if (tipo === 'sucursal' && seleccionId) {
+    if (typeof obtenerParametrosExcluidos === 'function') {
+      const excluidos = obtenerParametrosExcluidos(seleccionId);
+      parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
+    } else if (parametrosExcluidosPorSucursal && parametrosExcluidosPorSucursal[seleccionId]) {
+      const excluidos = parametrosExcluidosPorSucursal[seleccionId];
+      parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
+    }
+  } else if (tipo === 'franquicia' && seleccionId) {
+    if (typeof obtenerParametrosExcluidosFranquicia === 'function') {
+      const excluidos = obtenerParametrosExcluidosFranquicia(seleccionId);
+      parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
+    } else if (parametrosExcluidosPorFranquicia && parametrosExcluidosPorFranquicia[seleccionId]) {
+      const excluidos = parametrosExcluidosPorFranquicia[seleccionId];
+      parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
+    }
+  }
+  // Excluir por modelo "Móvil" (regla de negocio)
+  if (modelo && modelo.toLowerCase().includes('móvil')) {
+    const idsExcluidosMovil = [
+      'atencion_mesa','tableta','puertas_vidrios','musica_volumen','mesas_sillas_limpieza','banos_estado','basura_estado','barra_limpieza','mesas_sillas_estado'
+    ];
+    parametrosAplicables = parametrosAplicables.filter(p => !idsExcluidosMovil.includes(p.id));
+  }
+
+  // Recolectar valores de los inputs SOLO para parámetros aplicables
   let total = 0, max = 0;
-  inputs.forEach(input => {
-    const paramId = input.name.replace('param_', '');
-    const param = parametros.find(p => p.id === paramId);
-    if (!param) return;
+  parametrosAplicables.forEach(param => {
+    const input = seccion.querySelector(`[name="param_${param.id}"]`);
+    if (!input) return;
     if (param.tipo === 'booleano') {
       if (input.checked) total += param.peso;
       max += param.peso;
@@ -1136,10 +1195,15 @@ function actualizarPreviewPuntaje() {
   document.getElementById('preview-porcentaje').textContent = max > 0 ? Math.round((total / max) * 100) : 0;
 }
 
+
 // 3. Antes de guardar, muestra confirmación con puntaje final
 const formNuevaEvaluacion = document.getElementById('form-nueva-evaluacion');
 if (formNuevaEvaluacion) {
   formNuevaEvaluacion.addEventListener('submit', async (e) => {
+    // Verificar si estamos editando una evaluación existente
+    const evaluacionEditando = window.state && window.state.evaluacionEditando;
+    console.log('[SUBMIT] Estado evaluacionEditando:', evaluacionEditando);
+
     console.log('>>> SUBMIT formulario de evaluación disparado');
     e.preventDefault();
     actualizarPreviewPuntaje();
@@ -1188,27 +1252,74 @@ if (formNuevaEvaluacion) {
     // Log para depuración
     console.log('Tipo seleccionado:', tipo);
     console.log('SucursalId:', sucursalId, 'FranquiciaId:', franquiciaId, 'Modelo:', modelo);
-    // Recolectar respuestas de parámetros
+    // Recolectar respuestas de parámetros SOLO de los aplicables (misma lógica que preview)
     const respuestas = {};
     let puntajeTotal = 0, totalParams = 0;
     const seccion = document.getElementById('seccion-parametros');
+    let maxPuntaje = 0;
     if (seccion) {
-      const inputs = seccion.querySelectorAll('[name^="param_"]');
-      inputs.forEach(input => {
-        const paramId = input.name.replace('param_', '');
-        const param = parametros.find(p => p.id === paramId);
-        let val = 0;
-        if (param && param.tipo === 'booleano') {
-          val = input.checked ? param.peso : 0;
-        } else {
-          val = Number(input.value);
+      // --- Lógica de exclusión igual que en actualizarPreviewPuntaje ---
+      let parametrosAplicables = [...parametros];
+      if (tipo === 'sucursal' && sucursalId) {
+        if (typeof obtenerParametrosExcluidos === 'function') {
+          const excluidos = obtenerParametrosExcluidos(sucursalId);
+          parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
+        } else if (parametrosExcluidosPorSucursal && parametrosExcluidosPorSucursal[sucursalId]) {
+          const excluidos = parametrosExcluidosPorSucursal[sucursalId];
+          parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
         }
-        respuestas[paramId] = val;
+      } else if (tipo === 'franquicia' && franquiciaId) {
+        if (typeof obtenerParametrosExcluidosFranquicia === 'function') {
+          const excluidos = obtenerParametrosExcluidosFranquicia(franquiciaId);
+          parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
+        } else if (parametrosExcluidosPorFranquicia && parametrosExcluidosPorFranquicia[franquiciaId]) {
+          const excluidos = parametrosExcluidosPorFranquicia[franquiciaId];
+          parametrosAplicables = parametrosAplicables.filter(p => !excluidos.includes(p.id));
+        }
+      }
+      // Excluir por modelo "Móvil"
+      if (modelo && modelo.toLowerCase().includes('móvil')) {
+        const idsExcluidosMovil = [
+          'atencion_mesa','tableta','puertas_vidrios','musica_volumen','mesas_sillas_limpieza','banos_estado','basura_estado','barra_limpieza','mesas_sillas_estado'
+        ];
+        parametrosAplicables = parametrosAplicables.filter(p => !idsExcluidosMovil.includes(p.id));
+      }
+      // --- Fin lógica de exclusión ---
+      let debugRows = [];
+      parametrosAplicables.forEach(param => {
+        const input = seccion.querySelector(`[name="param_${param.id}"]`);
+        let val = 0;
+        let pesoSumado = 0;
+        if (input) {
+          if (param.tipo === 'booleano' || input.type === 'checkbox') {
+            val = input.checked ? param.peso : 0;
+            pesoSumado = param.peso;
+            maxPuntaje += param.peso;
+          } else {
+            val = Number(input.value) || 0;
+            pesoSumado = param.peso;
+            maxPuntaje += param.peso;
+          }
+        }
+        respuestas[param.id] = val;
         puntajeTotal += val;
         totalParams++;
+        debugRows.push({
+          paramId: param.id,
+          nombre: param.nombre,
+          tipo: input ? input.type : 'N/A',
+          checked: input && input.type === 'checkbox' ? input.checked : undefined,
+          valorInput: input ? input.value : undefined,
+          valorUsado: val,
+          peso: param.peso,
+          pesoSumado
+        });
       });
+      console.table(debugRows);
+      console.log('[DEBUG PUNTAJE] maxPuntaje:', maxPuntaje, 'puntajeTotal:', puntajeTotal, 'totalParams:', totalParams);
     }
-    puntajeTotal = totalParams > 0 ? Math.round(puntajeTotal / totalParams) : 0;
+    puntajeTotal = maxPuntaje > 0 ? Math.round((puntajeTotal / maxPuntaje) * 100) : 0;
+    console.log('[DEBUG PUNTAJE] % Calculado:', puntajeTotal);
     const evaluacion = {
       sucursalId: sucursalId || null,
       franquiciaId: franquiciaId || null,
@@ -1221,19 +1332,31 @@ if (formNuevaEvaluacion) {
       observaciones,
       completada: true
     };
+    // Guardar objeto para depuración global
+    window.ultimaEvaluacionAGuardar = evaluacion;
     // Log para depuración
     console.log('Objeto evaluación a guardar:', evaluacion);
     // Log de usuario autenticado para depuración
     console.log('Usuario autenticado al guardar:', window.auth?.currentUser?.email);
-    console.log('>>> Antes de addDoc');
     try {
-      await addDoc(collection(db, 'evaluaciones'), evaluacion);
-      console.log('>>> Después de addDoc (guardado exitoso)');
+      if (evaluacionEditando && evaluacionEditando.id) {
+        // Modo edición: actualizar documento existente
+        const docRef = doc(db, 'evaluaciones', evaluacionEditando.id);
+        console.log('[SUBMIT] Actualizando docRef:', docRef, 'con objeto:', { ...evaluacion, id: evaluacionEditando.id });
+        await setDoc(docRef, { ...evaluacion, id: evaluacionEditando.id });
+        console.log('>>> Evaluación actualizada con setDoc');
+      } else {
+        // Modo creación: nuevo documento
+        await addDoc(collection(db, 'evaluaciones'), evaluacion);
+        console.log('>>> Evaluación guardada con addDoc');
+      }
       if (window.bootstrap && window.bootstrap.Modal) {
         window.bootstrap.Modal.getInstance(document.getElementById('modalNuevaEvaluacion')).hide();
       } else {
         document.getElementById('modalNuevaEvaluacion').style.display = 'none';
       }
+      // Limpiar estado de edición
+      if (window.state) window.state.evaluacionEditando = null;
       await cargarEvaluaciones();
       actualizarResumen();
       mostrarGraficaSucursales();
